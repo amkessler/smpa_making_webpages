@@ -46,7 +46,7 @@ DT::datatable(events)
 #It's easy, we just add:
 DT::datatable(events, 
               rownames = FALSE, 
-              filter = "top"# <--- NEW STUFF HERE
+              filter = "top"  # <--- NEW STUFF HERE
               )
 ```
 
@@ -83,9 +83,9 @@ DT::datatable(events,
               extensions = 'Buttons', 
               options = list(   # <--- NEW STUFF STARTS HERE
                 dom = 'Bfrtip',
-                buttons = c('copy', 'csv', "excel")
+                buttons = c('copy', 'pdf', "excel")
               )) %>%
-  DT::formatStyle('cand_lastname',  color = 'red', fontWeight = 'bold')
+  DT::formatStyle('cand_lastname',  color = '#a65ed6', fontWeight = 'bold')
 ```
 
 
@@ -105,7 +105,7 @@ mytable <- DT::datatable(events,
   DT::formatStyle('cand_lastname',  color = 'red', fontWeight = 'bold') 
 
 # ... then just run this simple bit of code to export to html
-DT::saveWidget(mytable, "mytable.html")
+DT::saveWidget(mytable, "candidatetracker.html")
 
 
 # We've now created a working web page that can be put anywhere on the internet we choose
