@@ -610,7 +610,6 @@ fig1
 
 ```{r}
 # Method 2: Interpolate missing values
-library(zoo)
 sample_data$sales_interpolated <- na.approx(sample_data$sales, na.rm = FALSE)
 
 fig2 <- plot_ly(sample_data, x = ~month, y = ~sales_interpolated,
