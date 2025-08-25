@@ -116,6 +116,8 @@ DT::saveWidget(mytable, "candidatetracker.html")
 ```
 
 
+### Creating a Minimal Table
+
 What if we have a little table and want a super minimal table with everything stripped out
 ```{r}
 
@@ -124,6 +126,81 @@ events %>%
   DT::datatable(rownames = FALSE, 
                 options = list(searching = FALSE, paging = FALSE, dom = "tip")) 
 
+
+```
+
+## Advanced DT Formatting and Conditional Styling
+
+Sometimes you want to highlight specific data points or format columns differently to make your table more readable and visually appealing.
+
+```{r}
+# Create a table with conditional formatting based on data values
+# This example highlights different candidate parties with colors
+# and formats the date column for better readability
+
+DT::datatable(events, 
+              rownames = FALSE, 
+              filter = "top",
+              extensions = 'Buttons', 
+              options = list(
+                dom = 'Bfrtip',
+                buttons = c('copy', 'csv', 'excel'),
+                pageLength = 15,
+                scrollX = TRUE
+              )) %>%
+  # Format the date column to be more readable
+  DT::formatDate('date', method = 'toLocaleDateString') %>%
+  # Highlight Democratic candidates in blue
+  DT::formatStyle('cand_lastname', 
+                  backgroundColor = DT::styleEqual('Biden', '#E3F2FD')) %>%
+  DT::formatStyle('cand_lastname', 
+                  backgroundColor = DT::styleEqual('Warren', '#E3F2FD')) %>%
+  # Highlight Republican candidates in red
+  DT::formatStyle('cand_lastname', 
+                  backgroundColor = DT::styleEqual('Trump', '#FFEBEE')) %>%
+  # Make the event type column bold and change text color
+  DT::formatStyle('event_type', fontWeight = 'bold', color = '#2E7D32')
+
+```
+
+## Customizing Search and Display Options
+
+For more advanced users, you can customize how the search functionality works and control the table's appearance more precisely.
+
+```{r}
+# Create a more customized table with specific search options
+# and enhanced user experience features
+
+DT::datatable(events, 
+              rownames = FALSE, 
+              filter = list(position = 'top', clear = FALSE),
+              extensions = c('Buttons', 'ColReorder'), 
+              options = list(
+                dom = 'Blfrtip',  # B=buttons, l=length menu, f=filtering, r=processing, t=table, i=info, p=pagination
+                buttons = list(
+                  'copy',
+                  list(extend = 'csv', filename = 'campaign_events'),
+                  list(extend = 'excel', filename = 'campaign_events'),
+                  'colvis'  # Column visibility toggle
+                ),
+                pageLength = 10,
+                lengthMenu = list(c(5, 10, 25, 50, -1), c('5', '10', '25', '50', 'All')),
+                scrollX = TRUE,
+                colReorder = TRUE,  # Allow column reordering
+                search = list(regex = TRUE, caseInsensitive = TRUE),
+                columnDefs = list(
+                  list(targets = '_all', className = 'dt-center'),  # Center align all columns
+                  list(targets = c(0), visible = FALSE),  # Hide first column if needed
+                  list(targets = c(1, 2), searchable = TRUE)  # Make specific columns searchable
+                )
+              )) %>%
+  # Add custom styling for better readability
+  DT::formatStyle(columns = c('cand_lastname'), 
+                  fontSize = '14px', 
+                  fontWeight = 'bold') %>%
+  DT::formatStyle(columns = c('state'), 
+                  backgroundColor = '#F5F5F5',
+                  border = '1px solid #ddd')
 
 ```
 
