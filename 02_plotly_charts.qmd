@@ -16,6 +16,7 @@ format:
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(plotly)
+library(zoo)  # For data interpolation
 
 
 ```
@@ -28,8 +29,11 @@ By the end of this tutorial, you will be able to:
 - Customize plot appearance, colors, and styling
 - Build multi-layer visualizations
 - Understand when to use different chart types
-- Implement accessibility best practices
-- Add interactivity features to enhance user experience
+- Implement accessibility and mobile-responsive best practices
+- Handle missing data and validate inputs properly
+- Optimize performance for large datasets
+- Export plots for web publishing and print media
+- Add advanced interactivity features to enhance user experience
 
 ## Introduction
 
@@ -88,7 +92,6 @@ fig <- fig %>% layout(title = 'Customized Scatter Plot')
 
 fig
 ```
-``
 
 ### Line Charts
 
@@ -575,6 +578,329 @@ Create a grouped bar chart that could be part of a dashboard:
 ```{r}
 # Your solution here
 
+```
+
+## Data Validation and Error Handling
+
+### Handling Missing Data
+
+Real-world datasets often contain missing values. Here's how to handle them gracefully in Plotly visualizations.
+
+```{r}
+# Create sample data with missing values
+sample_data <- data.frame(
+  month = c("Jan", "Feb", "Mar", "Apr", "May", "Jun"),
+  sales = c(100, NA, 150, 120, NA, 180),
+  target = c(110, 120, 140, 130, 160, 170)
+)
+
+# Method 1: Remove missing values
+clean_data <- sample_data %>% 
+  filter(!is.na(sales))
+
+fig1 <- plot_ly(clean_data, x = ~month, y = ~sales, 
+                type = 'scatter', mode = 'lines+markers',
+                name = 'Actual Sales') %>%
+  add_trace(data = sample_data, y = ~target, name = 'Target',
+            line = list(dash = 'dash')) %>%
+  layout(title = "Sales Data (Missing Values Removed)")
+
+fig1
+```
+
+```{r}
+# Method 2: Interpolate missing values
+library(zoo)
+sample_data$sales_interpolated <- na.approx(sample_data$sales, na.rm = FALSE)
+
+fig2 <- plot_ly(sample_data, x = ~month, y = ~sales_interpolated,
+                type = 'scatter', mode = 'lines+markers',
+                name = 'Interpolated Sales') %>%
+  add_trace(y = ~target, name = 'Target',
+            line = list(dash = 'dash')) %>%
+  layout(title = "Sales Data (Missing Values Interpolated)")
+
+fig2
+```
+
+### Input Validation
+
+Always validate your data before creating visualizations:
+
+```{r}
+# Function to validate data before plotting
+validate_plot_data <- function(data, x_col, y_col) {
+  # Check if columns exist
+  if (!x_col %in% names(data)) {
+    stop(paste("Column", x_col, "not found in data"))
+  }
+  if (!y_col %in% names(data)) {
+    stop(paste("Column", y_col, "not found in data"))
+  }
+  
+  # Check for sufficient data points
+  if (nrow(data) < 2) {
+    warning("Data contains fewer than 2 rows")
+  }
+  
+  # Check for all missing values
+  if (all(is.na(data[[y_col]]))) {
+    stop(paste("All values in", y_col, "are missing"))
+  }
+  
+  return(TRUE)
+}
+
+# Example usage
+tryCatch({
+  validate_plot_data(iris, "Sepal.Length", "Petal.Length")
+  print("Data validation passed!")
+}, error = function(e) {
+  print(paste("Validation error:", e$message))
+})
+```
+
+## Mobile-Responsive and Accessible Design
+
+### Mobile-Friendly Configuration
+
+Ensure your plots work well on mobile devices:
+
+```{r}
+# Create a mobile-friendly plot configuration
+mobile_config <- list(
+  displayModeBar = FALSE,  # Hide toolbar on mobile
+  responsive = TRUE,       # Make plot responsive
+  scrollZoom = FALSE      # Disable scroll zoom to prevent page scroll issues
+)
+
+fig <- plot_ly(data = iris,
+               x = ~Sepal.Length,
+               y = ~Petal.Length,
+               color = ~Species,
+               type = 'scatter',
+               mode = 'markers') %>%
+  layout(
+    title = list(
+      text = "Mobile-Friendly Iris Plot",
+      font = list(size = 16)  # Readable font size on mobile
+    ),
+    margin = list(t = 60, r = 20, b = 40, l = 60),  # Optimized margins
+    legend = list(
+      orientation = "h",  # Horizontal legend for mobile
+      x = 0, y = -0.1
+    )
+  ) %>%
+  config(mobile_config)
+
+fig
+```
+
+### Enhanced Accessibility Features
+
+```{r}
+# Comprehensive accessible color palette
+accessible_palette <- c(
+  "#1f77b4",  # Blue
+  "#ff7f0e",  # Orange  
+  "#2ca02c",  # Green
+  "#d62728",  # Red
+  "#9467bd",  # Purple
+  "#8c564b",  # Brown
+  "#e377c2",  # Pink
+  "#7f7f7f",  # Gray
+  "#bcbd22",  # Olive
+  "#17becf"   # Cyan
+)
+
+# Create accessible visualization with patterns and colors
+fig <- plot_ly(data = iris,
+               x = ~Sepal.Length,
+               y = ~Petal.Length,
+               color = ~Species,
+               colors = accessible_palette,
+               symbol = ~Species,  # Different symbols for each species
+               symbols = c('circle', 'square', 'diamond'),
+               marker = list(size = 10, line = list(width = 1, color = 'black'))) %>%
+  layout(
+    title = "Accessible Iris Visualization (Color + Shape + Border)",
+    xaxis = list(
+      title = "Sepal Length (cm)",
+      titlefont = list(size = 14)
+    ),
+    yaxis = list(
+      title = "Petal Length (cm)", 
+      titlefont = list(size = 14)
+    ),
+    font = list(size = 12)  # Larger base font size
+  )
+
+fig
+```
+
+## Export and Integration
+
+### Saving Plots for Publication
+
+```{r}
+# Create a publication-ready plot
+pub_fig <- plot_ly(data = iris,
+                   x = ~Sepal.Length,
+                   y = ~Petal.Length, 
+                   color = ~Species,
+                   colors = accessible_palette) %>%
+  layout(
+    title = "Relationship Between Sepal and Petal Length in Iris Species",
+    xaxis = list(title = "Sepal Length (cm)"),
+    yaxis = list(title = "Petal Length (cm)"),
+    font = list(family = "Arial", size = 12),
+    paper_bgcolor = 'white',
+    plot_bgcolor = 'white'
+  )
+
+# Note: In practice, you would save this using:
+# htmlwidgets::saveWidget(pub_fig, "iris_plot.html", selfcontained = TRUE)
+# Or for static images: 
+# orca(pub_fig, "iris_plot.png", width = 800, height = 600)
+
+pub_fig
+```
+
+### Embedding in Web Pages
+
+```{r}
+# Create a plot optimized for web embedding
+web_fig <- plot_ly(data = mtcars,
+                   x = ~wt,
+                   y = ~mpg,
+                   text = ~paste("Car:", rownames(mtcars)),
+                   hovertemplate = "%{text}<br>Weight: %{x:.1f}<br>MPG: %{y}<extra></extra>") %>%
+  layout(
+    title = "Fuel Efficiency vs Weight",
+    xaxis = list(title = "Weight (1000 lbs)"),
+    yaxis = list(title = "Miles Per Gallon"),
+    hovermode = 'closest',
+    # Optimize for web embedding
+    margin = list(t = 50, r = 50, b = 50, l = 50)
+  ) %>%
+  config(
+    displaylogo = FALSE,  # Remove Plotly logo
+    modeBarButtonsToRemove = c('pan2d', 'lasso2d', 'select2d')  # Simplify toolbar
+  )
+
+web_fig
+```
+
+## Real-World Journalism Examples
+
+### Election Results Visualization
+
+```{r}
+# Simulate election data
+election_data <- data.frame(
+  candidate = c("Candidate A", "Candidate B", "Candidate C", "Other"),
+  votes = c(45.2, 42.1, 8.3, 4.4),
+  party = c("Democrat", "Republican", "Independent", "Other")
+)
+
+# Create news-style election chart
+election_fig <- plot_ly(election_data,
+                        x = ~reorder(candidate, votes),
+                        y = ~votes,
+                        type = "bar",
+                        marker = list(
+                          color = c("#1f77b4", "#d62728", "#ff7f0e", "#7f7f7f"),
+                          line = list(color = "black", width = 1)
+                        ),
+                        hovertemplate = "%{x}<br>%{y:.1f}% of votes<extra></extra>") %>%
+  layout(
+    title = "2024 Election Results",
+    xaxis = list(title = "", tickangle = 45),
+    yaxis = list(title = "Percentage of Votes (%)", range = c(0, 50)),
+    showlegend = FALSE,
+    plot_bgcolor = "white",
+    paper_bgcolor = "white"
+  )
+
+election_fig
+```
+
+### Budget Tracking Dashboard
+
+```{r}
+# Create budget data
+budget_data <- data.frame(
+  department = c("Education", "Healthcare", "Transportation", "Public Safety", "Parks & Rec"),
+  allocated = c(2.5, 1.8, 1.2, 0.9, 0.4),
+  spent = c(2.3, 1.9, 1.0, 0.8, 0.3)
+) %>%
+  pivot_longer(cols = c(allocated, spent), names_to = "type", values_to = "amount")
+
+# Create grouped bar chart for budget comparison
+budget_fig <- plot_ly(budget_data,
+                      x = ~department,
+                      y = ~amount,
+                      color = ~type,
+                      type = "bar",
+                      colors = c("#2ca02c", "#d62728")) %>%
+  layout(
+    title = "City Budget: Allocated vs Spent (in Billions)",
+    xaxis = list(title = "", tickangle = 45),
+    yaxis = list(title = "Amount ($ Billions)"),
+    barmode = "group",
+    legend = list(title = list(text = "Budget Type"))
+  )
+
+budget_fig
+```
+
+## Performance Optimization for Large Datasets
+
+### Handling Big Data
+
+```{r}
+# Simulate large dataset
+set.seed(123)
+large_data <- data.frame(
+  x = rnorm(50000),
+  y = rnorm(50000),
+  category = sample(LETTERS[1:10], 50000, replace = TRUE)
+)
+
+# Strategy 1: Sampling
+sampled_data <- large_data %>%
+  slice_sample(n = 2000)
+
+fig1 <- plot_ly(sampled_data, x = ~x, y = ~y, color = ~category,
+                type = 'scattergl',  # Use WebGL for better performance
+                alpha = 0.6) %>%
+  layout(title = "Large Dataset (Sampled to 2,000 points)")
+
+# Strategy 2: Aggregation
+aggregated_data <- large_data %>%
+  group_by(category) %>%
+  summarise(
+    mean_x = mean(x),
+    mean_y = mean(y),
+    count = n(),
+    .groups = 'drop'
+  )
+
+fig2 <- plot_ly(aggregated_data, x = ~mean_x, y = ~mean_y,
+                size = ~count, color = ~category,
+                text = ~paste("Category:", category, "<br>Count:", count),
+                hovertemplate = "%{text}<extra></extra>") %>%
+  layout(title = "Large Dataset (Aggregated by Category)")
+
+print(paste("Original data:", nrow(large_data), "points"))
+print(paste("Sampled data:", nrow(sampled_data), "points"))
+print(paste("Aggregated data:", nrow(aggregated_data), "points"))
+
+fig1
+```
+
+```{r}
+fig2
 ```
 
 ## Key Takeaways and Best Practices
