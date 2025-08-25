@@ -2,3 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+
+# Generated HTML outputs and their dependencies
+*.html
+*_files/
