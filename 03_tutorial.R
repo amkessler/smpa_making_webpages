@@ -15,6 +15,87 @@ colnames(events_data)
 dim(events_data)
 
 # ============================================================================
+# DATA CLEANING AND PREPARATION
+# ============================================================================
+
+# Before analyzing data, we often need to clean and prepare it. Real-world 
+# datasets frequently have missing values, inconsistent formatting, duplicates,
+# and incorrect data types. The tidyverse provides excellent tools for these tasks.
+
+# Let's first examine data quality issues in our dataset
+summary(events_data)
+
+# Check for missing values across all columns
+events_data %>%
+  summarise_all(~sum(is.na(.)))
+
+# Check for duplicate rows
+nrow(events_data)  # Total rows
+events_data %>%
+  distinct() %>%
+  nrow()  # Unique rows after removing duplicates
+
+# Example 1: Handling missing values
+# Remove rows where critical columns are missing
+cleaned_events <- events_data %>%
+  filter(!is.na(cand_name), !is.na(state))
+
+# Alternative approach: use drop_na() for multiple columns at once
+cleaned_events <- events_data %>%
+  drop_na(cand_name, state)
+
+# Example 2: String cleaning and standardization
+cleaned_events <- cleaned_events %>%
+  mutate(
+    # Clean candidate names - remove extra whitespace and standardize case
+    cand_name = str_trim(cand_name),
+    cand_name = str_to_title(cand_name),
+    # Clean state names - handle common variations
+    state = str_trim(state),
+    state = str_to_upper(state)
+  )
+
+# Example 3: Handling data type conversions
+# Check current data types
+str(cleaned_events)
+
+# Convert character columns to factors where appropriate
+cleaned_events <- cleaned_events %>%
+  mutate(
+    cand_name = as.factor(cand_name),
+    state = as.factor(state)
+  )
+
+# Example 4: Removing exact duplicates
+cleaned_events <- cleaned_events %>%
+  distinct()
+
+# Example 5: Creating clean, analysis-ready dataset
+# Apply all cleaning steps in one pipeline
+analysis_ready_data <- events_data %>%
+  # Remove missing critical data
+  filter(!is.na(cand_name), !is.na(state)) %>%
+  # Clean strings
+  mutate(
+    cand_name = str_trim(str_to_title(cand_name)),
+    state = str_trim(str_to_upper(state))
+  ) %>%
+  # Convert to appropriate types
+  mutate(
+    cand_name = as.factor(cand_name),
+    state = as.factor(state)
+  ) %>%
+  # Remove duplicates
+  distinct()
+
+# Compare original vs cleaned data
+nrow(events_data)  # Original
+nrow(analysis_ready_data)  # After cleaning
+
+# Use the cleaned data for all subsequent analysis
+events_data <- analysis_ready_data
+
+# ============================================================================
 # TUTORIAL: GROUPING AND SUMMARIZING WITH TIDYVERSE
 # ============================================================================
 
@@ -337,6 +418,137 @@ if ("date" %in% colnames(events_data) || "event_date" %in% colnames(events_data)
 # 4. Filter data first to avoid overly wide tables
 # 5. Consider using pivot_longer() to reverse the transformation
 # 6. Combine with group_by() and summarise() for aggregated pivots
+
+# ============================================================================
+# JOINING DATASETS
+# ============================================================================
+
+# Real data analysis often requires combining information from multiple sources.
+# The tidyverse provides powerful join functions to merge datasets based on
+# common columns (keys). Let's create a sample dataset to demonstrate joins.
+
+# Create a sample candidate demographics dataset
+candidate_info <- tibble(
+  cand_name = c("Biden", "Trump", "Harris", "DeSantis", "Haley", "Ramaswamy"),
+  party = c("Democrat", "Republican", "Democrat", "Republican", "Republican", "Republican"),
+  age = c(80, 77, 59, 45, 52, 38),
+  home_state = c("DE", "FL", "CA", "FL", "SC", "OH")
+)
+
+candidate_info
+
+# Example 15: LEFT JOIN - Keep all events, add candidate info where available
+# This is the most common type of join
+events_with_info <- events_data %>%
+  left_join(candidate_info, by = "cand_name")
+
+head(events_with_info)
+
+# Check dimensions - should have same number of rows as events_data
+nrow(events_data)  # Original events
+nrow(events_with_info)  # After left join
+
+# Example 16: INNER JOIN - Only keep events for candidates we have info about
+events_inner <- events_data %>%
+  inner_join(candidate_info, by = "cand_name")
+
+head(events_inner)
+nrow(events_inner)  # Likely fewer rows than original
+
+# See which candidates we lost
+events_data %>%
+  anti_join(candidate_info, by = "cand_name") %>%
+  distinct(cand_name)
+
+# Example 17: Creating state information dataset for another join example
+state_info <- tibble(
+  state = c("IA", "NH", "SC", "NV", "CA", "TX", "FL", "NY", "PA", "OH"),
+  region = c("Midwest", "Northeast", "South", "West", "West", "South", 
+             "South", "Northeast", "Northeast", "Midwest"),
+  electoral_votes = c(6, 4, 9, 6, 54, 40, 30, 28, 19, 17),
+  population_millions = c(3.2, 1.4, 5.2, 3.1, 39.0, 30.0, 22.6, 19.3, 13.0, 11.8)
+)
+
+state_info
+
+# Example 18: Multiple joins - Add both candidate and state information
+comprehensive_data <- events_data %>%
+  left_join(candidate_info, by = "cand_name") %>%
+  left_join(state_info, by = "state")
+
+head(comprehensive_data)
+
+# Example 19: Analysis with joined data
+# Now we can analyze by party and region
+party_region_analysis <- comprehensive_data %>%
+  filter(!is.na(party), !is.na(region)) %>%
+  group_by(party, region) %>%
+  summarise(
+    events = n(),
+    candidates = n_distinct(cand_name),
+    avg_electoral_votes = round(mean(electoral_votes, na.rm = TRUE), 1),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(events))
+
+party_region_analysis
+
+# Example 20: Join with different column names
+# Sometimes the key columns have different names in each dataset
+# Create a dataset with different column name
+candidate_polling <- tibble(
+  candidate = c("Biden", "Trump", "Harris", "DeSantis", "Haley"),
+  avg_poll_pct = c(45.2, 42.8, 38.5, 15.3, 8.7),
+  poll_trend = c("stable", "rising", "falling", "stable", "falling")
+)
+
+# Join using different column names
+events_with_polls <- events_data %>%
+  left_join(candidate_polling, by = c("cand_name" = "candidate"))
+
+head(events_with_polls)
+
+# Example 21: Analyzing campaign strategy with joined data
+campaign_strategy <- events_with_polls %>%
+  filter(!is.na(avg_poll_pct)) %>%
+  group_by(cand_name) %>%
+  summarise(
+    total_events = n(),
+    states_visited = n_distinct(state),
+    avg_poll_pct = first(avg_poll_pct),
+    events_per_poll_point = round(total_events / avg_poll_pct, 2),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(avg_poll_pct))
+
+campaign_strategy
+
+# Example 22: FULL JOIN - Keep all rows from both datasets
+# Create a small example to show the difference
+sample_events <- events_data %>%
+  distinct(cand_name) %>%
+  head(5)
+
+sample_candidates <- candidate_info %>%
+  head(4)
+
+# Inner join - only matching candidates
+sample_events %>%
+  inner_join(sample_candidates, by = "cand_name")
+
+# Full join - all candidates from both datasets
+sample_events %>%
+  full_join(sample_candidates, by = "cand_name")
+
+# ============================================================================
+# JOIN TYPES SUMMARY
+# ============================================================================
+# left_join(x, y): Keep all rows from x, add matching info from y
+# right_join(x, y): Keep all rows from y, add matching info from x  
+# inner_join(x, y): Only keep rows that match in both datasets
+# full_join(x, y): Keep all rows from both datasets
+# anti_join(x, y): Keep rows from x that DON'T match y
+# semi_join(x, y): Keep rows from x that DO match y (but don't add y's columns)
 
 # ============================================================================
 # KEY TAKEAWAYS
