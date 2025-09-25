@@ -161,8 +161,14 @@ if ("date" %in% colnames(events_data) || "event_date" %in% colnames(events_data)
     summarise(
       total_events = n(),
       states_visited = n_distinct(state),
-      first_event = min(get(date_col), na.rm = TRUE),
-      last_event = max(get(date_col), na.rm = TRUE),
+      across(
+        all_of(date_col),
+        list(
+          first_event = ~min(.x, na.rm = TRUE),
+          last_event = ~max(.x, na.rm = TRUE)
+        ),
+        .names = "{.fn}"
+      ),
       .groups = "drop"
     ) %>%
     arrange(desc(total_events))
@@ -393,7 +399,11 @@ if ("date" %in% colnames(events_data) || "event_date" %in% colnames(events_data)
   monthly_activity <- events_data %>%
     filter(cand_name %in% top_candidates) %>%
     mutate(
-      month = format(get(date_col), "%Y-%m")
+      month = across(
+        all_of(date_col),
+        ~ format(.x, "%Y-%m"),
+        .names = "month"
+      )
     ) %>%
     group_by(cand_name, month) %>%
     summarise(
