@@ -348,16 +348,17 @@ Watch here how we work plotly into a regular type of tidyverse/dplyr pipeline.
 
 ```{r, echo=TRUE}
 
-all_cities_plotlychart <- txhousing %>%
-  group_by(city) %>%
+all_cities_data <- txhousing %>%
+  group_by(city)
+
+all_cities_plotlychart <- all_cities_data %>%
   plot_ly(x = ~date, y = ~median) %>%
   add_lines(
     name = "Texan Cities", 
     line = list(width = 1.33), 
     alpha = 0.2, 
     hoverinfo = "none"
-  ) %>%
-  ungroup()
+  )
 
 all_cities_plotlychart
 
@@ -367,21 +368,26 @@ Now let's add a line with the average of each cities median price. We’ll use s
 
 ```{r, echo=TRUE}
 
-summarized_data <- all_cities_plotlychart %>%
+summarized_data <- txhousing %>%
   group_by(date) %>%
   summarise(median = mean(median, na.rm = TRUE)) %>%
   ungroup()
 
 summarized_data %>%
-  plotly_data()
+  slice_head(n = 6)
 
 ```
 
 Make the chart to add a highlighted line for median price.
 ```{r, echo=TRUE}
 
-summarized_data %>%
-  add_lines(name = "Average Median Price")
+all_cities_plotlychart %>%
+  add_lines(
+    data = summarized_data,
+    x = ~date,
+    y = ~median,
+    name = "Average Median Price"
+  )
 
 
 ```
@@ -393,9 +399,10 @@ Let’s say that we also wanted to add lines for the major Texan cities to see w
 First we'll do San Antonio.
 ```{r, echo=TRUE}
 
-all_cities_plotlychart %>%
-  filter(city == "San Antonio") %>%
-  plotly_data()
+san_antonio_data <- all_cities_data %>%
+  filter(city == "San Antonio")
+
+san_antonio_data
 
 ```
 
@@ -403,8 +410,12 @@ all_cities_plotlychart %>%
 ```{r, echo=TRUE}
 
 all_cities_plotlychart %>%
-  filter(city == "San Antonio") %>%
-  add_lines(name = "San Antonio")
+  add_lines(
+    data = san_antonio_data,
+    x = ~date,
+    y = ~median,
+    name = "San Antonio"
+  )
 
 
 ```
@@ -412,10 +423,16 @@ all_cities_plotlychart %>%
 
 ```{r, echo=TRUE}
 
-#again this time with a different city
+dallas_data <- all_cities_data %>%
+  filter(city == "Dallas")
+
 all_cities_plotlychart %>%
-  filter(city == "Dallas") %>%
-  add_lines(name = "Dallas")
+  add_lines(
+    data = dallas_data,
+    x = ~date,
+    y = ~median,
+    name = "Dallas"
+  )
 
 
 ```
@@ -425,8 +442,12 @@ What if we want multiple cities to be highlighted? We can create a function to d
 
 city_layer <- function(plot_obj, city_name) {
   plot_obj %>%
-    filter(city == city_name) %>%
-    add_lines(name = city_name)
+    add_lines(
+      data = filter(all_cities_data, city == city_name),
+      x = ~date,
+      y = ~median,
+      name = city_name
+    )
 }
 
 all_cities_plotlychart %>%
@@ -934,5 +955,3 @@ fig2
 - [R Graph Gallery - Plotly Section](https://r-graph-gallery.com/plotly.html)
 - [Color Brewer for Accessible Palettes](https://colorbrewer2.org/)
 - [Fundamentals of Data Visualization by Claus Wilke](https://clauswilke.com/dataviz/)
-
-
