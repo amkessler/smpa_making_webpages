@@ -1,0 +1,380 @@
+---
+title: "Interactive Data Visualization with Highcharter in R"
+author: "Aaron Kessler"
+format:
+  html:
+    self-contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(highcharter)
+library(lubridate)
+
+# Load built-in datasets for examples
+data(mtcars)
+data(iris)
+data(economics, package = "ggplot2")
+
+# Create sample data for more complex examples
+set.seed(123)
+sales_data <- data.frame(
+  month = seq(as.Date("2023-01-01"), as.Date("2023-12-01"), by = "month"),
+  product_a = sample(100:500, 12),
+  product_b = sample(80:400, 12),
+  product_c = sample(120:350, 12)
+)
+
+temperature_data <- data.frame(
+  date = seq(as.Date("2023-01-01"), as.Date("2023-12-31"), by = "day"),
+  temperature = 20 + 15 * sin(2 * pi * (1:365) / 365) + rnorm(365, 0, 3)
+)
+```
+
+## Learning Objectives
+
+By the end of this tutorial, you will be able to:
+
+- Create interactive charts using the Highcharter package in R
+- Build various chart types including line charts, bar charts, scatter plots, and heatmaps
+- Customize chart appearance, colors, and styling with Highcharts themes
+- Add interactive features like tooltips, zooming, and data labels
+- Create multi-series and combination charts
+- Implement responsive design for web publishing
+- Export charts for various formats and platforms
+
+## Introduction to Highcharter
+
+Highcharter is an R wrapper for the popular Highcharts JavaScript library, providing a powerful way to create interactive, publication-ready visualizations. Unlike other R plotting packages, Highcharter produces charts that work seamlessly in web browsers with built-in interactivity, animations, and professional styling.
+
+## Basic Line Chart
+
+Let's start with a simple line chart showing economic data over time:
+
+```{r}
+# Basic line chart with economics data
+hchart(economics, "line", hcaes(x = date, y = unemploy)) %>%
+  hc_title(text = "US Unemployment Over Time") %>%
+  hc_subtitle(text = "Data from the Federal Reserve Economic Data") %>%
+  hc_yAxis(title = list(text = "Unemployment (thousands)")) %>%
+  hc_xAxis(title = list(text = "Year"))
+```
+
+## Scatter Plot with Categories
+
+Create an interactive scatter plot using the iris dataset:
+
+```{r}
+# Scatter plot with color-coded categories
+hchart(iris, "scatter", hcaes(x = Sepal.Length, y = Sepal.Width, group = Species)) %>%
+  hc_title(text = "Iris Dataset: Sepal Measurements") %>%
+  hc_subtitle(text = "Interactive scatter plot with species categories") %>%
+  hc_xAxis(title = list(text = "Sepal Length (cm)")) %>%
+  hc_yAxis(title = list(text = "Sepal Width (cm)")) %>%
+  hc_tooltip(pointFormat = "Species: <b>{point.series.name}</b><br/>
+                           Sepal Length: <b>{point.x}</b><br/>
+                           Sepal Width: <b>{point.y}</b>")
+```
+
+## Column Chart with Custom Colors
+
+Display car data using a customized column chart:
+
+```{r}
+# Prepare data for column chart
+mtcars_summary <- mtcars %>%
+  group_by(cyl) %>%
+  summarise(avg_mpg = mean(mpg), .groups = "drop") %>%
+  mutate(cyl = paste(cyl, "cylinders"))
+
+# Create column chart
+hchart(mtcars_summary, "column", hcaes(x = cyl, y = avg_mpg)) %>%
+  hc_title(text = "Average MPG by Number of Cylinders") %>%
+  hc_subtitle(text = "Data from mtcars dataset") %>%
+  hc_yAxis(title = list(text = "Miles Per Gallon")) %>%
+  hc_xAxis(title = list(text = "Engine Configuration")) %>%
+  hc_colors("#2E86C1") %>%
+  hc_tooltip(pointFormat = "Average MPG: <b>{point.y:.1f}</b>")
+```
+
+## Multi-Series Line Chart
+
+Create a multi-line chart showing multiple products' sales over time:
+
+```{r}
+# Reshape data for multiple series
+sales_long <- sales_data %>%
+  pivot_longer(cols = starts_with("product"),
+               names_to = "product",
+               values_to = "sales") %>%
+  mutate(product = str_to_title(str_replace(product, "_", " ")))
+
+# Multi-series line chart
+hchart(sales_long, "line", hcaes(x = month, y = sales, group = product)) %>%
+  hc_title(text = "Monthly Sales by Product") %>%
+  hc_subtitle(text = "2023 Sales Performance") %>%
+  hc_xAxis(title = list(text = "Month"), type = "datetime") %>%
+  hc_yAxis(title = list(text = "Sales ($)")) %>%
+  hc_tooltip(pointFormat = "<span style='color:{point.color}'>{series.name}</span>: <b>${point.y}</b><br/>") %>%
+  hc_legend(enabled = TRUE) %>%
+  hc_colors(c("#E74C3C", "#3498DB", "#2ECC71"))
+```
+
+## Area Chart with Stacking
+
+Show cumulative data using a stacked area chart:
+
+```{r}
+# Create stacked area chart
+highchart() %>%
+  hc_chart(type = "area") %>%
+  hc_title(text = "Stacked Product Sales Over Time") %>%
+  hc_subtitle(text = "Cumulative monthly performance") %>%
+  hc_xAxis(categories = format(sales_data$month, "%b %Y")) %>%
+  hc_yAxis(title = list(text = "Sales ($)")) %>%
+  hc_plotOptions(area = list(
+    stacking = "normal",
+    lineColor = "#ffffff",
+    lineWidth = 1
+  )) %>%
+  hc_add_series(name = "Product A", data = sales_data$product_a) %>%
+  hc_add_series(name = "Product B", data = sales_data$product_b) %>%
+  hc_add_series(name = "Product C", data = sales_data$product_c) %>%
+  hc_colors(c("#FF6B6B", "#4ECDC4", "#45B7D1"))
+```
+
+## Interactive Pie Chart
+
+Create a pie chart showing car transmission types:
+
+```{r}
+# Prepare data for pie chart
+transmission_data <- mtcars %>%
+  count(am) %>%
+  mutate(transmission = ifelse(am == 0, "Automatic", "Manual")) %>%
+  select(transmission, n)
+
+# Create pie chart
+hchart(transmission_data, "pie", hcaes(x = transmission, y = n)) %>%
+  hc_title(text = "Distribution of Transmission Types") %>%
+  hc_subtitle(text = "From mtcars dataset") %>%
+  hc_tooltip(pointFormat = "<b>{point.percentage:.1f}%</b> ({point.y} cars)") %>%
+  hc_plotOptions(pie = list(
+    allowPointSelect = TRUE,
+    cursor = "pointer",
+    dataLabels = list(
+      enabled = TRUE,
+      format = "{point.name}: {point.percentage:.1f}%"
+    ),
+    showInLegend = TRUE
+  ))
+```
+
+## Heatmap Visualization
+
+Create a correlation heatmap using numeric variables from mtcars:
+
+```{r}
+# Prepare correlation matrix
+mtcars_cor <- mtcars %>%
+  select(mpg, hp, wt, qsec, disp) %>%
+  cor() %>%
+  round(2)
+
+# Convert to format for heatmap
+heatmap_data <- expand.grid(
+  x = 1:ncol(mtcars_cor),
+  y = 1:nrow(mtcars_cor)
+) %>%
+  mutate(
+    value = as.vector(mtcars_cor),
+    x_name = rep(colnames(mtcars_cor), each = nrow(mtcars_cor)),
+    y_name = rep(rownames(mtcars_cor), times = ncol(mtcars_cor))
+  )
+
+# Create heatmap
+hchart(heatmap_data, "heatmap", hcaes(x = x, y = y, value = value)) %>%
+  hc_title(text = "Correlation Matrix: Car Characteristics") %>%
+  hc_subtitle(text = "Correlation between numeric variables in mtcars") %>%
+  hc_xAxis(categories = colnames(mtcars_cor), title = NULL) %>%
+  hc_yAxis(categories = rownames(mtcars_cor), title = NULL, reversed = TRUE) %>%
+  hc_colorAxis(
+    stops = list(
+      list(0, "#FF0000"),
+      list(0.5, "#FFFFFF"),
+      list(1, "#0000FF")
+    ),
+    min = -1,
+    max = 1
+  ) %>%
+  hc_tooltip(
+    formatter = JS("function() {
+      return '<b>' + this.series.xAxis.categories[this.point.x] +
+             '</b> vs <b>' + this.series.yAxis.categories[this.point.y] +
+             '</b><br/>Correlation: <b>' + this.point.value + '</b>';
+    }")
+  )
+```
+
+## Advanced Time Series with Zoom
+
+Create an advanced time series chart with zoom functionality:
+
+```{r}
+# Time series with temperature data
+hchart(temperature_data, "line", hcaes(x = date, y = temperature)) %>%
+  hc_title(text = "Daily Temperature Throughout 2023") %>%
+  hc_subtitle(text = "Interactive time series with zoom functionality") %>%
+  hc_xAxis(type = "datetime", title = list(text = "Date")) %>%
+  hc_yAxis(title = list(text = "Temperature (°C)")) %>%
+  hc_tooltip(
+    xDateFormat = "%B %d, %Y",
+    pointFormat = "Temperature: <b>{point.y:.1f}°C</b>"
+  ) %>%
+  hc_rangeSelector(
+    buttons = list(
+      list(type = "month", count = 1, text = "1M"),
+      list(type = "month", count = 3, text = "3M"),
+      list(type = "month", count = 6, text = "6M"),
+      list(type = "all", text = "All")
+    ),
+    selected = 3
+  ) %>%
+  hc_scrollbar(enabled = TRUE) %>%
+  hc_navigator(enabled = TRUE) %>%
+  hc_colors("#E67E22")
+```
+
+## Combination Chart (Column + Line)
+
+Combine different chart types to show related but different scales of data:
+
+```{r}
+# Create sample data for combination chart
+combo_data <- data.frame(
+  month = month.abb,
+  sales = c(150, 200, 180, 220, 300, 280, 320, 290, 250, 200, 180, 160),
+  growth_rate = c(5, 8, -2, 12, 15, -5, 8, -3, -8, -10, -5, -2)
+)
+
+# Combination chart
+highchart() %>%
+  hc_title(text = "Sales Performance and Growth Rate") %>%
+  hc_subtitle(text = "Monthly sales with year-over-year growth percentage") %>%
+  hc_xAxis(categories = combo_data$month) %>%
+  hc_yAxis_multiples(
+    list(title = list(text = "Sales ($000)"), opposite = FALSE),
+    list(title = list(text = "Growth Rate (%)"), opposite = TRUE)
+  ) %>%
+  hc_add_series(
+    name = "Sales",
+    type = "column",
+    data = combo_data$sales,
+    yAxis = 0
+  ) %>%
+  hc_add_series(
+    name = "Growth Rate",
+    type = "line",
+    data = combo_data$growth_rate,
+    yAxis = 1,
+    marker = list(enabled = TRUE, radius = 4)
+  ) %>%
+  hc_colors(c("#3498DB", "#E74C3C")) %>%
+  hc_tooltip(shared = TRUE)
+```
+
+## Customizing Themes and Styling
+
+Apply custom themes and advanced styling options:
+
+```{r}
+# Custom styled chart with dark theme
+hchart(iris, "scatter", hcaes(x = Petal.Length, y = Petal.Width, group = Species)) %>%
+  hc_title(text = "Iris Petal Measurements", style = list(color = "#FFFFFF")) %>%
+  hc_subtitle(text = "Custom dark theme visualization", style = list(color = "#CCCCCC")) %>%
+  hc_chart(backgroundColor = "#2C3E50") %>%
+  hc_xAxis(
+    title = list(text = "Petal Length (cm)", style = list(color = "#FFFFFF")),
+    labels = list(style = list(color = "#FFFFFF")),
+    gridLineColor = "#34495E"
+  ) %>%
+  hc_yAxis(
+    title = list(text = "Petal Width (cm)", style = list(color = "#FFFFFF")),
+    labels = list(style = list(color = "#FFFFFF")),
+    gridLineColor = "#34495E"
+  ) %>%
+  hc_legend(
+    itemStyle = list(color = "#FFFFFF"),
+    itemHoverStyle = list(color = "#BDC3C7")
+  ) %>%
+  hc_colors(c("#E74C3C", "#3498DB", "#2ECC71")) %>%
+  hc_plotOptions(
+    scatter = list(
+      marker = list(
+        radius = 6,
+        states = list(
+          hover = list(
+            enabled = TRUE,
+            lineColor = "rgb(100,100,100)"
+          )
+        )
+      )
+    )
+  )
+```
+
+## Exporting and Saving Charts
+
+Learn how to export charts for web use:
+
+```{r}
+# Create a chart and save it
+my_chart <- hchart(mtcars, "scatter", hcaes(x = wt, y = mpg, group = cyl)) %>%
+  hc_title(text = "Car Weight vs MPG by Cylinders") %>%
+  hc_xAxis(title = list(text = "Weight (1000 lbs)")) %>%
+  hc_yAxis(title = list(text = "Miles Per Gallon"))
+
+# Display the chart
+my_chart
+
+# To save as HTML widget (uncomment to use):
+# htmlwidgets::saveWidget(my_chart, "my_highchart.html", selfcontained = TRUE)
+```
+
+## Performance Tips and Best Practices
+
+When working with Highcharter:
+
+1. **Data Preparation**: Clean and structure your data before plotting
+2. **Color Accessibility**: Use colorblind-friendly palettes
+3. **Responsive Design**: Charts automatically adapt to container size
+4. **Performance**: For large datasets, consider data sampling or aggregation
+5. **Interactivity**: Don't overload charts with too many interactive features
+6. **Mobile**: Test charts on mobile devices for optimal user experience
+
+```{r}
+# Example of accessibility-friendly colors
+accessible_colors <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd")
+
+hchart(iris, "scatter", hcaes(x = Sepal.Length, y = Sepal.Width, group = Species)) %>%
+  hc_title(text = "Accessibility-Friendly Color Palette") %>%
+  hc_colors(accessible_colors) %>%
+  hc_tooltip(
+    headerFormat = "<b>{point.key}</b><br/>",
+    pointFormat = "Sepal Length: {point.x}<br/>Sepal Width: {point.y}"
+  )
+```
+
+## Conclusion
+
+Highcharter provides a powerful and flexible way to create interactive visualizations in R. Its integration with the Highcharts JavaScript library offers professional-quality charts suitable for web publishing, presentations, and dashboards. The package excels at creating engaging, interactive experiences while maintaining the familiar R syntax that data scientists and analysts appreciate.
+
+Key advantages of Highcharter include:
+- Professional appearance with minimal customization
+- Built-in interactivity and responsiveness
+- Wide variety of chart types and customization options
+- Seamless integration with R workflows and Quarto documents
+- Export capabilities for web and print media
+
+Continue exploring the extensive Highcharter documentation and experiment with different chart types to find the best visualizations for your data storytelling needs.
