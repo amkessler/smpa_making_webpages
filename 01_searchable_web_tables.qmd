@@ -72,9 +72,9 @@ DT::datatable(events,
 
 
 ```{r}
-#Now, for the coup de gr?ce
+#Now, for the coup de grâce
 #let's add some buttons at the top of the page to let people copy, download, etc
-#we do that using a DT "extenstion" called, you guessed it, Buttons
+#we do that using a DT "extension" called, you guessed it, Buttons
 # https://rstudio.github.io/DT/extensions.html
 
 DT::datatable(events, 
