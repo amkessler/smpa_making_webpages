@@ -1,0 +1,896 @@
+---
+title: "Interactive Data Visualization with echarts4r in R"
+author: "Aaron Kessler"
+format:
+  html:
+    self-contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(echarts4r)
+library(lubridate)
+library(dplyr)
+
+# Load built-in datasets for examples
+data(mtcars)
+data(iris)
+data(economics, package = "ggplot2")
+
+# Create sample data for more complex examples
+set.seed(123)
+sales_data <- data.frame(
+  month = seq(as.Date("2023-01-01"), as.Date("2023-12-01"), by = "month"),
+  product_a = sample(100:500, 12),
+  product_b = sample(80:400, 12),
+  product_c = sample(120:350, 12)
+)
+
+temperature_data <- data.frame(
+  date = seq(as.Date("2023-01-01"), as.Date("2023-12-31"), by = "day"),
+  temperature = 20 + 15 * sin(2 * pi * (1:365) / 365) + rnorm(365, 0, 3)
+)
+
+# Sample financial data for advanced examples
+financial_data <- data.frame(
+  date = seq(as.Date("2023-01-01"), as.Date("2023-12-31"), by = "day"),
+  open = cumsum(rnorm(365, 0, 2)) + 100,
+  close = cumsum(rnorm(365, 0, 2)) + 100,
+  high = cumsum(rnorm(365, 0, 2)) + 105,
+  low = cumsum(rnorm(365, 0, 2)) + 95,
+  volume = sample(1000:5000, 365)
+)
+```
+
+## Learning Objectives
+
+By the end of this tutorial, you will be able to:
+
+- Create interactive charts using the echarts4r package in R
+- Build various chart types including line charts, bar charts, scatter plots, heatmaps, gauge charts, and treemaps
+- Implement unique echarts4r features like brush selection, data zoom, timeline controls, and 3D charts
+- Customize chart appearance with themes, colors, animations, and responsive design
+- Add advanced interactivity features to enhance user experience
+- Optimize charts for accessibility and performance
+- Export charts for web publishing and integration
+- Choose between echarts4r, plotly, and highcharter based on specific needs
+
+## Introduction to echarts4r
+
+echarts4r is an R wrapper for Apache ECharts (formerly developed by Baidu), one of the most popular JavaScript charting libraries in the world. What sets echarts4r apart from other R visualization packages is its incredible flexibility, unique chart types, and powerful interactive features like brush selection, advanced zooming, and timeline controls.
+
+Unlike plotly (which focuses on scientific visualization) or highcharter (which emphasizes business charts), echarts4r excels at creating highly customized, interactive dashboards with unique visualization types and advanced user interactions.
+
+For this tutorial we'll use built-in R datasets like "iris," "mtcars," and "economics," plus create sample datasets to demonstrate echarts4r's unique capabilities.
+
+## Basic Line Chart
+
+Let's start with a simple line chart showing economic data over time:
+
+```{r}
+# Basic line chart with economics data
+economics %>%
+  e_charts(date) %>%
+  e_line(unemploy) %>%
+  e_title("US Unemployment Over Time") %>%
+  e_tooltip(trigger = "axis") %>%
+  e_legend(show = FALSE) %>%
+  e_x_axis(name = "Year") %>%
+  e_y_axis(name = "Unemployment (thousands)")
+```
+
+## Scatter Plot with Categories
+
+Create an interactive scatter plot using the iris dataset with echarts4r's unique styling:
+
+```{r}
+# Scatter plot with color-coded categories
+iris %>%
+  group_by(Species) %>%
+  e_charts(Sepal.Length) %>%
+  e_scatter(Sepal.Width, symbol_size = 10) %>%
+  e_title("Iris Dataset: Sepal Measurements") %>%
+  e_tooltip() %>%
+  e_legend(orient = "vertical", right = "5%") %>%
+  e_x_axis(name = "Sepal Length (cm)") %>%
+  e_y_axis(name = "Sepal Width (cm)") %>%
+  e_theme("macarons")  # Apply built-in theme
+```
+
+## Bar Charts
+
+### Basic Bar Chart
+
+Bar charts in echarts4r offer smooth animations and rich interactivity:
+
+```{r}
+# Prepare data for bar chart
+mtcars_summary <- mtcars %>%
+  group_by(cyl) %>%
+  summarise(avg_mpg = mean(mpg), .groups = "drop") %>%
+  mutate(cyl = paste(cyl, "cylinders"))
+
+# Create animated bar chart
+mtcars_summary %>%
+  e_charts(cyl) %>%
+  e_bar(avg_mpg, name = "Average MPG") %>%
+  e_title("Average MPG by Number of Cylinders") %>%
+  e_tooltip() %>%
+  e_legend(show = FALSE) %>%
+  e_x_axis(name = "Engine Configuration") %>%
+  e_y_axis(name = "Miles Per Gallon") %>%
+  e_color("#c23531") %>%
+  e_animation(duration = 1000)  # Smooth animation
+```
+
+### Horizontal Bar Chart
+
+echarts4r makes it easy to flip chart orientations:
+
+```{r}
+# Horizontal bar chart
+mtcars %>%
+  count(cyl) %>%
+  mutate(cyl = paste(cyl, "cylinders")) %>%
+  e_charts(cyl) %>%
+  e_bar(n, name = "Count") %>%
+  e_flip_coords() %>%  # This flips to horizontal
+  e_title("Car Count by Cylinder Configuration") %>%
+  e_tooltip() %>%
+  e_color("#91c7ae") %>%
+  e_legend(show = FALSE)
+```
+
+### Stacked Bar Chart
+
+Show multiple data series in a stacked format:
+
+```{r}
+# Prepare data for stacked bars
+transmission_cyl <- mtcars %>%
+  count(cyl, am) %>%
+  mutate(
+    cyl = paste(cyl, "cyl"),
+    transmission = ifelse(am == 0, "Automatic", "Manual")
+  ) %>%
+  select(-am)
+
+# Create stacked bar chart
+transmission_cyl %>%
+  group_by(transmission) %>%
+  e_charts(cyl) %>%
+  e_bar(n, stack = "total") %>%  # Stack bars
+  e_title("Transmission Types by Cylinder Count") %>%
+  e_tooltip() %>%
+  e_legend(top = "10%") %>%
+  e_colors(c("#d48265", "#91c7ae"))
+```
+
+## Advanced Multi-Series Charts
+
+### Multi-Line Chart with Rich Interactions
+
+echarts4r excels at multi-series visualizations with advanced interactions:
+
+```{r}
+# Reshape sales data for multiple series
+sales_long <- sales_data %>%
+  pivot_longer(cols = starts_with("product"),
+               names_to = "product",
+               values_to = "sales") %>%
+  mutate(product = str_to_title(str_replace(product, "_", " ")))
+
+# Multi-series line chart with data zoom
+sales_long %>%
+  group_by(product) %>%
+  e_charts(month) %>%
+  e_line(sales, smooth = TRUE) %>%  # Smooth lines
+  e_title("Monthly Sales by Product") %>%
+  e_subtitle("Interactive chart with data zoom and brush selection") %>%
+  e_tooltip(trigger = "axis") %>%
+  e_legend(top = "10%") %>%
+  e_datazoom(type = "slider") %>%  # Add data zoom slider
+  e_brush() %>%  # Enable brush selection
+  e_toolbox_feature(feature = "dataZoom") %>%  # Add zoom tools
+  e_toolbox_feature(feature = "brush") %>%    # Add brush tools
+  e_theme("westeros")
+```
+
+### Area Chart with Gradient Fill
+
+Create stunning area charts with gradient effects:
+
+```{r}
+# Area chart with gradient
+economics %>%
+  e_charts(date) %>%
+  e_area(
+    unemploy,
+    name = "Unemployment",
+    smooth = TRUE,
+    areaStyle = list(
+      color = list(
+        type = "linear",
+        x = 0, y = 0, x2 = 0, y2 = 1,
+        colorStops = list(
+          list(offset = 0, color = "rgba(255, 158, 68, 0.8)"),
+          list(offset = 1, color = "rgba(255, 158, 68, 0.1)")
+        )
+      )
+    )
+  ) %>%
+  e_title("US Unemployment Trend") %>%
+  e_tooltip(trigger = "axis") %>%
+  e_legend(show = FALSE) %>%
+  e_datazoom(type = "inside")  # Inside zoom (scroll to zoom)
+```
+
+## Unique echarts4r Features
+
+### Gauge Charts
+
+echarts4r offers impressive gauge visualizations:
+
+```{r}
+# Simple gauge chart
+data.frame(value = 75) %>%
+  e_charts() %>%
+  e_gauge(value, "Performance Score") %>%
+  e_title("Performance Dashboard") %>%
+  e_color("#c23531")
+```
+
+### Gauge with Custom Styling
+
+```{r}
+# Advanced gauge with custom appearance
+data.frame(
+  metric = c("CPU", "Memory", "Disk"),
+  value = c(65, 82, 45)
+) %>%
+  e_charts() %>%
+  e_gauge(
+    value,
+    metric,
+    radius = "60%",
+    startAngle = 180,
+    endAngle = 0,
+    min = 0,
+    max = 100,
+    splitNumber = 5,
+    axisLine = list(
+      lineStyle = list(
+        width = 30,
+        color = list(
+          c(0.3, "#67e0e3"),
+          c(0.7, "#37a2da"),
+          c(1, "#fd666d")
+        )
+      )
+    )
+  ) %>%
+  e_title("System Monitor") %>%
+  e_grid(top = "60%")
+```
+
+### Treemap Visualization
+
+Hierarchical data visualization with treemaps:
+
+```{r}
+# Create hierarchical data
+treemap_data <- mtcars %>%
+  rownames_to_column("car") %>%
+  mutate(
+    brand = word(car, 1),
+    value = hp
+  ) %>%
+  group_by(brand) %>%
+  summarise(
+    total_hp = sum(hp),
+    car_count = n(),
+    .groups = "drop"
+  ) %>%
+  mutate(name = brand, value = total_hp) %>%
+  select(name, value)
+
+# Create treemap
+treemap_data %>%
+  e_charts() %>%
+  e_treemap(name, value) %>%
+  e_title("Car Brands by Total Horsepower") %>%
+  e_tooltip()
+```
+
+### Heatmap with Calendar Layout
+
+echarts4r can create unique calendar heatmaps:
+
+```{r}
+# Prepare data for calendar heatmap
+calendar_data <- temperature_data %>%
+  mutate(
+    date_str = format(date, "%Y-%m-%d"),
+    value = round(temperature, 1)
+  ) %>%
+  select(date_str, value)
+
+# Create calendar heatmap
+calendar_data %>%
+  e_charts() %>%
+  e_calendar(range = "2023", top = "120") %>%
+  e_heatmap(date_str, value, coord_system = "calendar") %>%
+  e_visual_map(
+    min = 0, max = 40,
+    type = "continuous",
+    orient = "horizontal",
+    left = "center",
+    top = "65"
+  ) %>%
+  e_title("2023 Daily Temperature Calendar", top = "30") %>%
+  e_tooltip()
+```
+
+### 3D Scatter Plot
+
+One of echarts4r's standout features is 3D visualization:
+
+```{r}
+# Create 3D scatter plot
+iris %>%
+  group_by(Species) %>%
+  e_charts() %>%
+  e_scatter_3d(Sepal.Length, Sepal.Width, Petal.Length, symbol_size = 10) %>%
+  e_title("3D Iris Visualization") %>%
+  e_legend() %>%
+  e_tooltip()
+```
+
+## Interactive Features
+
+### Brush Selection
+
+Enable users to select data regions interactively:
+
+```{r}
+# Scatter plot with brush selection
+mtcars %>%
+  e_charts(wt) %>%
+  e_scatter(mpg, size = hp, symbol_size = 10) %>%
+  e_title("Car Weight vs MPG (size = horsepower)") %>%
+  e_tooltip() %>%
+  e_brush() %>%  # Enable brush selection
+  e_toolbox_feature("brush") %>%
+  e_legend(show = FALSE) %>%
+  e_x_axis(name = "Weight (1000 lbs)") %>%
+  e_y_axis(name = "Miles Per Gallon")
+```
+
+### Timeline Controls
+
+Create animated charts that progress through time:
+
+```{r}
+# Prepare data for timeline
+timeline_data <- expand.grid(
+  year = 2020:2023,
+  category = c("Product A", "Product B", "Product C")
+) %>%
+  mutate(
+    value = sample(50:300, nrow(.), replace = TRUE),
+    size = sample(10:50, nrow(.), replace = TRUE)
+  )
+
+# Create timeline chart
+timeline_data %>%
+  group_by(year) %>%
+  e_charts(category, timeline = TRUE) %>%
+  e_bar(value) %>%
+  e_title("Sales Evolution Over Time") %>%
+  e_timeline_opts(
+    autoPlay = TRUE,
+    rewind = TRUE,
+    playInterval = 1500
+  ) %>%
+  e_tooltip()
+```
+
+### Data Zoom with Multiple Types
+
+Combine different zoom interactions:
+
+```{r}
+# Advanced data zoom example
+economics %>%
+  e_charts(date) %>%
+  e_line(unemploy, name = "Unemployment") %>%
+  e_line(psavert, name = "Personal Savings Rate") %>%
+  e_title("Economic Indicators with Advanced Zoom") %>%
+  e_tooltip(trigger = "axis") %>%
+  e_legend() %>%
+  e_datazoom(type = "slider", y_index = 0) %>%  # Slider zoom
+  e_datazoom(type = "inside", y_index = 0) %>%  # Inside zoom
+  e_datazoom(type = "select", y_index = 0)      # Select zoom
+```
+
+## Customization and Themes
+
+### Built-in Themes
+
+echarts4r comes with many beautiful built-in themes:
+
+```{r}
+# Showcase different themes
+iris %>%
+  group_by(Species) %>%
+  e_charts(Sepal.Length) %>%
+  e_scatter(Sepal.Width, symbol_size = 8) %>%
+  e_title("Iris with 'Dark' Theme") %>%
+  e_tooltip() %>%
+  e_legend() %>%
+  e_theme("dark")  # Try: "vintage", "dark", "chalk", "essos", etc.
+```
+
+### Custom Color Palettes
+
+Create your own color schemes:
+
+```{r}
+# Custom color palette
+custom_colors <- c("#FF6B6B", "#4ECDC4", "#45B7D1", "#96CEB4", "#FFEAA7")
+
+mtcars %>%
+  count(cyl) %>%
+  mutate(cyl = paste(cyl, "cylinders")) %>%
+  e_charts(cyl) %>%
+  e_bar(n, name = "Count") %>%
+  e_title("Custom Color Palette Example") %>%
+  e_colors(custom_colors) %>%
+  e_tooltip()
+```
+
+### Animation Customization
+
+Control animation timing and effects:
+
+```{r}
+# Custom animations
+sales_data %>%
+  e_charts(month) %>%
+  e_bar(product_a, name = "Product A") %>%
+  e_title("Animated Bar Chart") %>%
+  e_animation(
+    duration = 2000,           # Animation duration
+    easing = "elasticOut",     # Easing function
+    delay = 100,               # Delay before animation
+    duration_update = 800      # Update animation duration
+  ) %>%
+  e_tooltip()
+```
+
+## Accessibility and Performance
+
+### Color-Blind Friendly Palettes
+
+Design for accessibility with appropriate color choices:
+
+```{r}
+# Accessible color palette (colorblind-friendly)
+accessible_colors <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b")
+
+iris %>%
+  group_by(Species) %>%
+  e_charts(Sepal.Length) %>%
+  e_scatter(Sepal.Width, symbol_size = 10) %>%
+  e_title("Accessible Iris Visualization") %>%
+  e_colors(accessible_colors) %>%
+  e_tooltip() %>%
+  e_legend()
+```
+
+### Performance Optimization
+
+Handle large datasets efficiently:
+
+```{r}
+# Performance optimization for large data
+set.seed(123)
+large_dataset <- data.frame(
+  x = rnorm(10000),
+  y = rnorm(10000),
+  category = sample(LETTERS[1:5], 10000, replace = TRUE)
+)
+
+# Sample for better performance
+sampled_data <- large_dataset %>%
+  slice_sample(n = 1000)
+
+sampled_data %>%
+  group_by(category) %>%
+  e_charts(x) %>%
+  e_scatter(y, symbol_size = 6) %>%
+  e_title("Optimized Large Dataset (1,000 of 10,000 points)") %>%
+  e_tooltip() %>%
+  e_legend() %>%
+  e_animation(duration = 500)  # Faster animation for performance
+```
+
+## Mobile-Responsive Design
+
+echarts4r charts are responsive by default, but you can customize mobile behavior:
+
+```{r}
+# Mobile-optimized chart
+iris %>%
+  group_by(Species) %>%
+  e_charts(Sepal.Length) %>%
+  e_scatter(Sepal.Width, symbol_size = 8) %>%
+  e_title("Mobile-Friendly Chart",
+           textStyle = list(fontSize = 16)) %>%  # Larger title for mobile
+  e_tooltip() %>%
+  e_legend(orient = "horizontal", bottom = "5%") %>%  # Horizontal legend
+  e_grid(
+    top = "20%",
+    bottom = "20%",
+    left = "10%",
+    right = "10%"
+  ) %>%
+  e_x_axis(axisLabel = list(fontSize = 12)) %>%
+  e_y_axis(axisLabel = list(fontSize = 12))
+```
+
+## Advanced Chart Types
+
+### Polar Coordinate Charts
+
+Create charts in polar coordinates:
+
+```{r}
+# Polar bar chart
+data.frame(
+  category = LETTERS[1:8],
+  value = sample(10:100, 8)
+) %>%
+  e_charts(category) %>%
+  e_polar() %>%
+  e_angle_axis() %>%
+  e_radius_axis() %>%
+  e_bar(value, coord_system = "polar") %>%
+  e_title("Polar Bar Chart")
+```
+
+### Sunburst Chart
+
+Hierarchical data in a radial layout:
+
+```{r}
+# Create sunburst data
+sunburst_data <- list(
+  list(
+    name = "Technology",
+    children = list(
+      list(name = "Software", value = 40),
+      list(name = "Hardware", value = 30),
+      list(name = "AI/ML", value = 25)
+    )
+  ),
+  list(
+    name = "Finance",
+    children = list(
+      list(name = "Banking", value = 35),
+      list(name = "Investment", value = 28),
+      list(name = "Insurance", value = 20)
+    )
+  )
+)
+
+# Create sunburst chart
+data.frame(x = 1) %>%
+  e_charts() %>%
+  e_sunburst(sunburst_data) %>%
+  e_title("Industry Breakdown - Sunburst Chart")
+```
+
+### Candlestick Chart for Financial Data
+
+Perfect for financial analysis:
+
+```{r}
+# Prepare OHLC data
+ohlc_sample <- financial_data %>%
+  slice_head(n = 30) %>%
+  mutate(
+    date_str = format(date, "%Y-%m-%d")
+  )
+
+# Create candlestick chart
+ohlc_sample %>%
+  e_charts(date_str) %>%
+  e_candle(open, close, low, high) %>%
+  e_title("Stock Price Candlestick Chart") %>%
+  e_tooltip(trigger = "axis") %>%
+  e_datazoom(type = "slider") %>%
+  e_legend(show = FALSE)
+```
+
+## Integration and Export
+
+### Saving Charts for Web Use
+
+```{r}
+# Create a publication-ready chart
+publication_chart <- iris %>%
+  group_by(Species) %>%
+  e_charts(Sepal.Length) %>%
+  e_scatter(Sepal.Width, symbol_size = 10) %>%
+  e_title("Iris Species Sepal Measurements") %>%
+  e_tooltip() %>%
+  e_legend() %>%
+  e_theme("macarons")
+
+# Display the chart
+publication_chart
+
+# To save as HTML widget (uncomment to use):
+# htmlwidgets::saveWidget(publication_chart, "echarts_iris.html", selfcontained = TRUE)
+```
+
+### Embedding in Dashboards
+
+echarts4r integrates seamlessly with Shiny and other R dashboard frameworks:
+
+```{r}
+# Dashboard-style chart with custom configuration
+dashboard_chart <- mtcars %>%
+  e_charts(wt) %>%
+  e_scatter(mpg, size = hp, symbol_size = 15) %>%
+  e_title("Vehicle Performance Dashboard") %>%
+  e_subtitle("Weight vs MPG (bubble size = horsepower)") %>%
+  e_tooltip(
+    formatter = htmlwidgets::JS("
+      function(params){
+        return('<strong>' + params.name + '</strong><br/>' +
+               'Weight: ' + params.value[0] + '<br/>' +
+               'MPG: ' + params.value[1] + '<br/>' +
+               'Horsepower: ' + params.value[2])
+      }
+    ")
+  ) %>%
+  e_legend(show = FALSE) %>%
+  e_x_axis(name = "Weight (1000 lbs)") %>%
+  e_y_axis(name = "Miles Per Gallon") %>%
+  e_theme("chalk")
+
+dashboard_chart
+```
+
+## When to Choose echarts4r
+
+### echarts4r vs plotly vs highcharter
+
+**Choose echarts4r when you need:**
+- Unique chart types (treemaps, sunbursts, 3D charts, gauges, calendar heatmaps)
+- Advanced interactivity (brush selection, timeline controls, multi-level zoom)
+- Highly customized animations and visual effects
+- Complex dashboard-style visualizations
+- Large-scale data visualization with good performance
+- Beautiful built-in themes and styling options
+
+**Choose plotly when you need:**
+- Scientific/statistical visualization
+- Quick conversion from ggplot2
+- Statistical chart types (violin plots, box plots, statistical distributions)
+- Strong integration with statistical analysis workflows
+
+**Choose highcharter when you need:**
+- Business/corporate presentation quality
+- Professional chart appearance with minimal customization
+- Strong financial/business chart types
+- Consistent, polished styling across chart types
+
+## Real-World Examples
+
+### Election Results Dashboard
+
+```{r}
+# Simulate election data
+election_data <- data.frame(
+  candidate = c("Smith", "Johnson", "Davis", "Wilson", "Brown"),
+  votes = c(125430, 98234, 67890, 45123, 23456),
+  percentage = c(35.2, 27.6, 19.1, 12.7, 6.6),
+  color = c("#c23531", "#2f4554", "#61a0a8", "#d48265", "#91c7ae")
+)
+
+# Create interactive election chart
+election_data %>%
+  e_charts(candidate) %>%
+  e_bar(votes, name = "Votes") %>%
+  e_title("2024 Election Results") %>%
+  e_subtitle("Interactive results with vote counts") %>%
+  e_tooltip(
+    formatter = htmlwidgets::JS("
+      function(params){
+        return('<strong>' + params.name + '</strong><br/>' +
+               'Votes: ' + params.value.toLocaleString() + '<br/>' +
+               'Percentage: ' + params.dataIndex + '%')
+      }
+    ")
+  ) %>%
+  e_colors(election_data$color) %>%
+  e_legend(show = FALSE) %>%
+  e_animation(duration = 1500)
+```
+
+### Real-time Style Dashboard
+
+```{r}
+# Create a multi-metric dashboard
+dashboard_data <- data.frame(
+  metric = c("Sales", "Users", "Revenue", "Conversion"),
+  current = c(1250, 8430, 45600, 3.2),
+  target = c(1500, 10000, 50000, 4.0),
+  percentage = c(83.3, 84.3, 91.2, 80.0)
+)
+
+# Multi-chart dashboard effect
+dashboard_data %>%
+  e_charts(metric) %>%
+  e_bar(current, name = "Current", y_index = 0) %>%
+  e_line(percentage, name = "% of Target", y_index = 1, symbol_size = 8) %>%
+  e_title("Business Metrics Dashboard") %>%
+  e_tooltip(trigger = "axis") %>%
+  e_legend(top = "10%") %>%
+  e_y_axis(index = 1, position = "right", name = "Percentage") %>%
+  e_colors(c("#91c7ae", "#c23531")) %>%
+  e_theme("westeros")
+```
+
+## Exercises and Practice
+
+### Exercise 1: Custom Gauge Dashboard
+Create a gauge chart showing website performance metrics:
+- Page load speed (target: under 3 seconds)
+- SEO score (0-100 scale)
+- Accessibility score (0-100 scale)
+Include proper colors (green/yellow/red) based on performance thresholds.
+
+```{r}
+# Your solution here
+# Hint: Use e_gauge() with custom color stops and multiple metrics
+
+```
+
+### Exercise 2: Interactive Timeline Chart
+Using any dataset of your choice:
+- Create a timeline chart showing data evolution over multiple time periods
+- Include at least 3 different categories or data series
+- Add timeline controls with auto-play functionality
+- Customize the animation timing and effects
+
+```{r}
+# Your solution here
+# Hint: Use timeline = TRUE in e_charts() and e_timeline_opts()
+
+```
+
+### Exercise 3: 3D Scatter Analysis
+Create a 3D scatter plot using the mtcars dataset:
+- Use three continuous variables for the x, y, z axes
+- Color points by a categorical variable (e.g., number of cylinders)
+- Add meaningful labels and tooltips
+- Apply appropriate sizing to represent a fourth dimension
+
+```{r}
+# Your solution here
+# Hint: Use e_scatter_3d() and group_by() for categories
+
+```
+
+## Performance Best Practices
+
+### Optimizing Large Datasets
+
+```{r}
+# Strategies for handling large datasets
+set.seed(123)
+large_data <- data.frame(
+  x = rnorm(50000),
+  y = rnorm(50000),
+  category = sample(letters[1:5], 50000, replace = TRUE)
+)
+
+# Strategy 1: Data aggregation
+aggregated_data <- large_data %>%
+  group_by(category) %>%
+  summarise(
+    mean_x = mean(x),
+    mean_y = mean(y),
+    count = n(),
+    .groups = "drop"
+  )
+
+aggregated_data %>%
+  e_charts(category) %>%
+  e_scatter(mean_x, mean_y, size = count, symbol_size = 20) %>%
+  e_title("Large Dataset - Aggregated View") %>%
+  e_tooltip()
+
+print(paste("Original data:", nrow(large_data), "points"))
+print(paste("Aggregated data:", nrow(aggregated_data), "points"))
+```
+
+### Animation Performance
+
+```{r}
+# Optimize animations for better performance
+mtcars %>%
+  e_charts(wt) %>%
+  e_scatter(mpg, symbol_size = 8) %>%
+  e_title("Performance-Optimized Animation") %>%
+  e_animation(
+    duration = 300,        # Shorter duration
+    easing = "linear",     # Simpler easing
+    delay = 0              # No delay
+  ) %>%
+  e_tooltip()
+```
+
+## Key Takeaways and Best Practices
+
+### Design Principles
+
+1. **Leverage echarts4r's Unique Strengths**
+   - Use brush selection for data exploration
+   - Implement timeline controls for temporal data
+   - Take advantage of 3D capabilities when appropriate
+   - Utilize advanced chart types (treemaps, sunbursts, gauges)
+
+2. **Performance Considerations**
+   - Sample or aggregate large datasets
+   - Use efficient animation settings
+   - Consider progressive loading for very large datasets
+   - Test performance on target devices
+
+3. **Accessibility Guidelines**
+   - Use colorblind-friendly palettes
+   - Provide alternative data access methods
+   - Ensure sufficient color contrast
+   - Include descriptive titles and labels
+
+4. **Mobile Optimization**
+   - Test charts on mobile devices
+   - Use horizontal legends when appropriate
+   - Optimize touch interactions
+   - Consider simplified versions for small screens
+
+### Common Pitfalls to Avoid
+
+- Overusing 3D effects when 2D would be clearer
+- Creating overly complex interactive features that confuse users
+- Ignoring performance impacts of large datasets
+- Not testing brush selection and zoom features thoroughly
+- Using too many animation effects simultaneously
+
+## Additional Resources
+
+- [echarts4r Official Documentation](https://echarts4r.john-coene.com/)
+- [Apache ECharts Documentation](https://echarts.apache.org/en/index.html)
+- [echarts4r GitHub Repository](https://github.com/JohnCoene/echarts4r)
+- [Color Accessibility Guidelines](https://www.w3.org/WAI/WCAG21/Understanding/use-of-color.html)
+- [Interactive Data Visualization Best Practices](https://www.tableau.com/learn/articles/best-beautiful-data-visualization-examples)
+
+## Conclusion
+
+echarts4r stands out in the R visualization ecosystem by offering unique chart types, advanced interactivity, and exceptional customization capabilities. Its strength lies in creating engaging, interactive dashboards and visualizations that go beyond traditional statistical charts.
+
+Key advantages of echarts4r include:
+- Unique chart types not available in other R packages
+- Advanced interactive features (brush selection, timeline controls, 3D visualization)
+- Excellent performance with large datasets
+- Beautiful built-in themes and animation capabilities
+- Seamless integration with web technologies and dashboard frameworks
+
+While plotly excels at scientific visualization and highcharter focuses on business presentations, echarts4r fills the niche of highly interactive, customized data experiences. Choose echarts4r when you need to create engaging, exploratory visualizations that encourage user interaction and provide unique insights through specialized chart types.
+
+Continue exploring echarts4r's extensive capabilities and experiment with its unique features to create compelling data stories that engage and inform your audience.

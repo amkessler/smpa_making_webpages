@@ -1,0 +1,993 @@
+---
+title: "Publication-Quality Data Visualization with ggplot2 in R"
+author: "Aaron Kessler"
+format:
+  html:
+    self-contained: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(ggplot2)
+library(scales)
+library(viridis)
+library(patchwork)
+library(lubridate)
+
+# Load built-in datasets for examples
+data(mtcars)
+data(iris)
+data(economics)
+data(mpg)
+
+# Create sample data for more complex examples
+set.seed(123)
+sales_data <- data.frame(
+  month = seq(as.Date("2023-01-01"), as.Date("2023-12-01"), by = "month"),
+  product_a = sample(100:500, 12),
+  product_b = sample(80:400, 12),
+  product_c = sample(120:350, 12)
+) %>%
+  pivot_longer(cols = starts_with("product"), names_to = "product", values_to = "sales")
+
+# Election results data for journalism examples
+election_results <- data.frame(
+  candidate = c("Candidate A", "Candidate B", "Candidate C", "Other"),
+  votes = c(45.2, 42.1, 8.3, 4.4),
+  party = c("Democrat", "Republican", "Independent", "Other")
+)
+
+# Survey data for faceting examples
+survey_data <- expand_grid(
+  age_group = c("18-29", "30-44", "45-59", "60+"),
+  question = c("Economy", "Healthcare", "Environment", "Education"),
+  response = c("Very Important", "Somewhat Important", "Not Important")
+) %>%
+  mutate(
+    percentage = case_when(
+      question == "Economy" ~ sample(20:40, n(), replace = TRUE),
+      question == "Healthcare" ~ sample(15:35, n(), replace = TRUE),
+      question == "Environment" ~ sample(10:30, n(), replace = TRUE),
+      TRUE ~ sample(25:45, n(), replace = TRUE)
+    )
+  )
+```
+
+## Learning Objectives
+
+By the end of this tutorial, you will be able to:
+
+- Understand the grammar of graphics philosophy underlying ggplot2
+- Create fundamental chart types: scatter plots, line charts, bar charts, histograms, and box plots
+- Master the layered approach to building complex visualizations
+- Apply aesthetic mappings (color, size, shape) to reveal patterns in data
+- Use faceting to create small multiples for comparing groups
+- Customize themes, colors, and styling for publication-quality output
+- Implement accessibility best practices and color-blind friendly palettes
+- Create professional layouts with multiple plots using patchwork
+- Export graphics optimized for web, print, and presentation formats
+- Apply ggplot2 to real-world journalism and educational contexts
+
+## Introduction to ggplot2
+
+ggplot2 is built on the "Grammar of Graphics" philosophy, treating plots as composed of layers that can be combined and customized. This systematic approach makes ggplot2 incredibly powerful for creating both simple charts and complex, multi-layered visualizations.
+
+Unlike interactive plotting packages, ggplot2 specializes in creating high-quality static graphics that are perfect for publications, reports, and presentations where precise control over appearance is essential.
+
+## The Grammar of Graphics
+
+Every ggplot2 visualization follows this basic structure:
+
+```
+ggplot(data) +
+  aes(x = variable1, y = variable2) +
+  geom_*() +
+  additional_layers()
+```
+
+The key components are:
+- **Data**: The dataset you're visualizing
+- **Aesthetics (aes)**: How variables map to visual properties
+- **Geometries (geom)**: The type of plot (points, lines, bars, etc.)
+- **Additional layers**: Scales, themes, facets, annotations
+
+Let's explore each component systematically.
+
+## Data Exploration
+
+Before creating visualizations, let's examine our datasets to understand their structure and content.
+
+```{r}
+# Examine the iris dataset - our primary example dataset
+glimpse(iris)
+head(iris)
+summary(iris)
+
+# Look at the structure of our sales data
+glimpse(sales_data)
+head(sales_data)
+
+# Check the economics dataset for time series examples
+glimpse(economics)
+head(economics)
+```
+
+## Basic Scatter Plots
+
+Scatter plots are fundamental for exploring relationships between continuous variables. They excel at revealing correlations, clusters, and outliers in your data.
+
+### Simple Scatter Plot
+
+```{r}
+# Basic scatter plot showing sepal length vs petal length
+ggplot(iris, aes(x = Sepal.Length, y = Petal.Length)) +
+  geom_point()
+```
+
+### Adding Color by Species
+
+```{r}
+# Color points by species to reveal groupings
+ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
+  geom_point()
+```
+
+### Customizing Point Appearance
+
+```{r}
+# Enhance the scatter plot with better styling
+ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
+  geom_point(size = 3, alpha = 0.7) +
+  labs(
+    title = "Relationship Between Sepal and Petal Length",
+    subtitle = "Iris dataset showing clear species clustering",
+    x = "Sepal Length (cm)",
+    y = "Petal Length (cm)",
+    color = "Species"
+  ) +
+  theme_minimal()
+```
+
+### Adding Trend Lines
+
+```{r}
+# Add smooth trend lines to show relationships
+ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(
+    title = "Linear Relationships by Species",
+    x = "Sepal Length (cm)",
+    y = "Petal Length (cm)",
+    color = "Species"
+  ) +
+  theme_minimal()
+```
+
+## Line Charts for Time Series
+
+Line charts are essential for showing trends over time and are particularly important for journalism and data storytelling.
+
+### Basic Time Series
+
+```{r}
+# Create a basic time series plot using economics data
+ggplot(economics, aes(x = date, y = unemploy)) +
+  geom_line() +
+  labs(
+    title = "U.S. Unemployment Over Time",
+    x = "Date",
+    y = "Number of Unemployed (in thousands)"
+  ) +
+  theme_minimal()
+```
+
+### Multiple Time Series
+
+```{r}
+# Prepare economics data for multiple series comparison
+economics_long <- economics %>%
+  select(date, unemploy, pop) %>%
+  mutate(
+    unemploy_rate = unemploy / pop * 100,  # Calculate unemployment rate
+    pop_millions = pop / 1000  # Convert to millions for better scale
+  ) %>%
+  pivot_longer(cols = c(unemploy_rate, pop_millions),
+               names_to = "metric",
+               values_to = "value")
+
+# Create multiple line chart with different metrics
+ggplot(economics_long, aes(x = date, y = value, color = metric)) +
+  geom_line(size = 1.2) +
+  facet_wrap(~metric, scales = "free_y",
+             labeller = labeller(metric = c(
+               "unemploy_rate" = "Unemployment Rate (%)",
+               "pop_millions" = "Population (millions)"
+             ))) +
+  labs(
+    title = "U.S. Economic Indicators Over Time",
+    x = "Date",
+    y = "Value"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")  # Remove legend since facets provide labels
+```
+
+### Custom Line Styling
+
+```{r}
+# Create a stylized line chart for our sales data
+ggplot(sales_data, aes(x = month, y = sales, color = product)) +
+  geom_line(size = 1.5, alpha = 0.8) +
+  geom_point(size = 3) +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "2 months") +
+  scale_y_continuous(labels = scales::comma_format()) +
+  scale_color_viridis_d(name = "Product",
+                        labels = c("Product A", "Product B", "Product C")) +
+  labs(
+    title = "Monthly Sales Performance by Product",
+    subtitle = "Sales trends throughout 2023",
+    x = "Month",
+    y = "Sales (units)",
+    caption = "Data: Company sales records"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(size = 16, face = "bold"),
+    plot.subtitle = element_text(size = 12, color = "gray60")
+  )
+```
+
+## Bar Charts for Categorical Data
+
+Bar charts are the workhorses of data visualization, perfect for comparing quantities across categories.
+
+### Simple Bar Chart
+
+```{r}
+# Create a basic bar chart with species counts
+iris_counts <- iris %>%
+  count(Species)
+
+ggplot(iris_counts, aes(x = Species, y = n)) +
+  geom_col() +
+  labs(
+    title = "Number of Observations by Species",
+    x = "Species",
+    y = "Count"
+  ) +
+  theme_minimal()
+```
+
+### Horizontal Bar Chart
+
+```{r}
+# Sometimes horizontal bars work better for readability
+ggplot(iris_counts, aes(x = n, y = reorder(Species, n))) +
+  geom_col(fill = "steelblue", alpha = 0.8) +
+  labs(
+    title = "Species Counts (Horizontal Layout)",
+    x = "Count",
+    y = "Species"
+  ) +
+  theme_minimal()
+```
+
+### Grouped Bar Chart
+
+```{r}
+# Create grouped bars for comparing across multiple categories
+mtcars_summary <- mtcars %>%
+  mutate(
+    transmission = factor(am, labels = c("Automatic", "Manual")),
+    engine = factor(vs, labels = c("V-shaped", "Straight"))
+  ) %>%
+  count(transmission, engine)
+
+ggplot(mtcars_summary, aes(x = transmission, y = n, fill = engine)) +
+  geom_col(position = "dodge", alpha = 0.8) +
+  scale_fill_brewer(type = "qual", palette = "Set2") +
+  labs(
+    title = "Car Engine Types by Transmission",
+    x = "Transmission Type",
+    y = "Number of Cars",
+    fill = "Engine Type"
+  ) +
+  theme_minimal()
+```
+
+### Stacked Bar Chart
+
+```{r}
+# Create stacked bars to show composition
+ggplot(mtcars_summary, aes(x = transmission, y = n, fill = engine)) +
+  geom_col(position = "stack", alpha = 0.8) +
+  scale_fill_brewer(type = "qual", palette = "Set2") +
+  labs(
+    title = "Engine Type Composition by Transmission",
+    x = "Transmission Type",
+    y = "Total Number of Cars",
+    fill = "Engine Type"
+  ) +
+  theme_minimal()
+```
+
+### Professional Bar Chart for Journalism
+
+```{r}
+# Create a publication-ready election results chart
+ggplot(election_results, aes(x = reorder(candidate, votes), y = votes, fill = party)) +
+  geom_col(alpha = 0.9, color = "white", size = 0.5) +
+  coord_flip() +
+  scale_fill_manual(
+    values = c("Democrat" = "#1f77b4", "Republican" = "#d62728",
+               "Independent" = "#ff7f0e", "Other" = "#7f7f7f")
+  ) +
+  scale_y_continuous(
+    labels = function(x) paste0(x, "%"),
+    expand = expansion(mult = c(0, 0.1))
+  ) +
+  labs(
+    title = "2024 Election Results",
+    subtitle = "Percentage of total votes cast",
+    x = NULL,
+    y = "Percentage of Votes",
+    fill = "Party",
+    caption = "Source: Election Commission"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    plot.subtitle = element_text(size = 14, color = "gray60"),
+    axis.text = element_text(size = 12),
+    legend.position = "bottom",
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor = element_blank()
+  )
+```
+
+## Histograms and Distributions
+
+Histograms help understand the distribution and frequency of continuous variables.
+
+### Basic Histogram
+
+```{r}
+# Simple histogram of sepal lengths
+ggplot(iris, aes(x = Sepal.Length)) +
+  geom_histogram(bins = 20, fill = "skyblue", alpha = 0.7, color = "white") +
+  labs(
+    title = "Distribution of Sepal Lengths",
+    x = "Sepal Length (cm)",
+    y = "Frequency"
+  ) +
+  theme_minimal()
+```
+
+### Faceted Histograms by Group
+
+```{r}
+# Compare distributions across species
+ggplot(iris, aes(x = Sepal.Length, fill = Species)) +
+  geom_histogram(bins = 15, alpha = 0.7, color = "white") +
+  facet_wrap(~Species, scales = "free_y") +
+  scale_fill_viridis_d() +
+  labs(
+    title = "Sepal Length Distribution by Species",
+    x = "Sepal Length (cm)",
+    y = "Frequency"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")  # Facets provide the grouping info
+```
+
+### Density Plots for Smooth Distributions
+
+```{r}
+# Use density plots for smoother distribution visualization
+ggplot(iris, aes(x = Sepal.Length, fill = Species)) +
+  geom_density(alpha = 0.6) +
+  scale_fill_viridis_d() +
+  labs(
+    title = "Sepal Length Density Distribution by Species",
+    x = "Sepal Length (cm)",
+    y = "Density",
+    fill = "Species"
+  ) +
+  theme_minimal()
+```
+
+## Box Plots for Statistical Summaries
+
+Box plots efficiently display the five-number summary and help identify outliers.
+
+### Basic Box Plot
+
+```{r}
+# Simple box plot comparing sepal lengths across species
+ggplot(iris, aes(x = Species, y = Sepal.Length)) +
+  geom_boxplot(fill = "lightblue", alpha = 0.7) +
+  labs(
+    title = "Sepal Length Distribution by Species",
+    x = "Species",
+    y = "Sepal Length (cm)"
+  ) +
+  theme_minimal()
+```
+
+### Enhanced Box Plot with Points
+
+```{r}
+# Add individual points to show the actual data
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+  geom_boxplot(alpha = 0.7, outlier.shape = NA) +  # Hide boxplot outliers
+  geom_jitter(width = 0.3, alpha = 0.5, size = 2) +  # Add jittered points
+  scale_fill_viridis_d() +
+  labs(
+    title = "Sepal Length: Distribution and Individual Observations",
+    x = "Species",
+    y = "Sepal Length (cm)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+### Violin Plots for Distribution Shape
+
+```{r}
+# Violin plots show the full distribution shape
+ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+  geom_violin(alpha = 0.7) +
+  geom_boxplot(width = 0.1, fill = "white", alpha = 0.8) +
+  scale_fill_viridis_d() +
+  labs(
+    title = "Sepal Length: Full Distribution Shape by Species",
+    x = "Species",
+    y = "Sepal Length (cm)"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+## Faceting for Small Multiples
+
+Faceting creates multiple plots to compare patterns across groups or conditions.
+
+### Facet Wrap
+
+```{r}
+# Create small multiples with facet_wrap
+ggplot(mpg, aes(x = displ, y = hwy)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  facet_wrap(~class) +
+  labs(
+    title = "Engine Displacement vs Highway MPG by Vehicle Class",
+    x = "Engine Displacement (L)",
+    y = "Highway MPG"
+  ) +
+  theme_minimal()
+```
+
+### Facet Grid for Two Variables
+
+```{r}
+# Use facet_grid for crossing two categorical variables
+mpg_subset <- mpg %>%
+  filter(class %in% c("compact", "midsize", "suv")) %>%
+  filter(year %in% c(1999, 2008))
+
+ggplot(mpg_subset, aes(x = displ, y = hwy)) +
+  geom_point(alpha = 0.6) +
+  facet_grid(year ~ class) +
+  labs(
+    title = "Fuel Efficiency Trends: 1999 vs 2008",
+    x = "Engine Displacement (L)",
+    y = "Highway MPG"
+  ) +
+  theme_minimal()
+```
+
+### Complex Faceting with Survey Data
+
+```{r}
+# Create a comprehensive survey visualization
+ggplot(survey_data, aes(x = age_group, y = percentage, fill = response)) +
+  geom_col(position = "dodge", alpha = 0.8) +
+  facet_wrap(~question, scales = "free_y") +
+  scale_fill_brewer(type = "qual", palette = "Set2") +
+  labs(
+    title = "Survey Responses by Age Group and Issue",
+    subtitle = "Percentage indicating each level of importance",
+    x = "Age Group",
+    y = "Percentage",
+    fill = "Response"
+  ) +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(size = 11, face = "bold")
+  )
+```
+
+## Advanced Customization and Themes
+
+### Built-in Themes
+
+```{r}
+# Compare different built-in themes
+p_base <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
+  geom_point(size = 3) +
+  labs(title = "Different ggplot2 Themes")
+
+# Create a grid of different themes
+library(patchwork)
+
+p1 <- p_base + theme_minimal() + ggtitle("theme_minimal()")
+p2 <- p_base + theme_classic() + ggtitle("theme_classic()")
+p3 <- p_base + theme_bw() + ggtitle("theme_bw()")
+p4 <- p_base + theme_void() + ggtitle("theme_void()")
+
+(p1 | p2) / (p3 | p4)
+```
+
+### Custom Theme Creation
+
+```{r}
+# Create a custom theme for consistent styling
+theme_publication <- function() {
+  theme_minimal() +
+    theme(
+      plot.title = element_text(size = 16, face = "bold", margin = margin(b = 20)),
+      plot.subtitle = element_text(size = 12, color = "gray60", margin = margin(b = 20)),
+      plot.caption = element_text(size = 10, color = "gray60", hjust = 0),
+      axis.title = element_text(size = 12, face = "bold"),
+      axis.text = element_text(size = 11),
+      legend.title = element_text(size = 12, face = "bold"),
+      legend.text = element_text(size = 11),
+      panel.grid.minor = element_blank(),
+      plot.background = element_rect(fill = "white", color = NA),
+      panel.background = element_rect(fill = "white", color = NA)
+    )
+}
+
+# Apply custom theme
+ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
+  geom_point(size = 3, alpha = 0.8) +
+  labs(
+    title = "Custom Publication Theme",
+    subtitle = "Professional styling for reports and presentations",
+    x = "Sepal Length (cm)",
+    y = "Petal Length (cm)",
+    caption = "Data: Anderson's iris dataset"
+  ) +
+  scale_color_viridis_d() +
+  theme_publication()
+```
+
+## Color and Accessibility
+
+### Color-Blind Friendly Palettes
+
+```{r}
+# Use color-blind friendly palettes
+ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
+  geom_point(size = 3) +
+  scale_color_viridis_d(name = "Species") +
+  labs(
+    title = "Color-Blind Friendly Visualization",
+    subtitle = "Using the viridis color palette",
+    x = "Sepal Length (cm)",
+    y = "Petal Length (cm)"
+  ) +
+  theme_minimal()
+```
+
+### Custom Accessible Color Palette
+
+```{r}
+# Define an accessible color palette
+accessible_colors <- c("#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd")
+
+ggplot(iris, aes(x = Species, fill = Species)) +
+  geom_bar(alpha = 0.8, color = "white", size = 1) +
+  scale_fill_manual(values = accessible_colors) +
+  labs(
+    title = "Accessible Color Palette Example",
+    x = "Species",
+    y = "Count"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+### Using Shapes for Additional Distinction
+
+```{r}
+# Combine color and shape for maximum accessibility
+ggplot(iris, aes(x = Sepal.Length, y = Petal.Length,
+                 color = Species, shape = Species)) +
+  geom_point(size = 4, alpha = 0.8) +
+  scale_color_viridis_d() +
+  scale_shape_manual(values = c(16, 17, 15)) +  # Different shapes
+  labs(
+    title = "Double-Encoded Accessibility",
+    subtitle = "Using both color and shape to distinguish groups",
+    x = "Sepal Length (cm)",
+    y = "Petal Length (cm)"
+  ) +
+  theme_minimal()
+```
+
+## Annotations and Highlighting
+
+### Adding Text Annotations
+
+```{r}
+# Highlight specific points with annotations
+iris_special <- iris %>%
+  filter(Sepal.Length > 7.5 | Petal.Length > 6.5)
+
+ggplot(iris, aes(x = Sepal.Length, y = Petal.Length)) +
+  geom_point(alpha = 0.6, color = "gray60") +
+  geom_point(data = iris_special, aes(color = Species), size = 4) +
+  geom_text(data = iris_special,
+            aes(label = paste(Species, "\n(", Sepal.Length, ",", Petal.Length, ")")),
+            nudge_y = 0.3, size = 3, fontface = "bold") +
+  scale_color_viridis_d() +
+  labs(
+    title = "Highlighting Exceptional Cases",
+    subtitle = "Points with extreme sepal or petal lengths",
+    x = "Sepal Length (cm)",
+    y = "Petal Length (cm)"
+  ) +
+  theme_minimal()
+```
+
+### Adding Reference Lines
+
+```{r}
+# Add reference lines for context
+ggplot(economics, aes(x = date, y = unemploy)) +
+  geom_line(size = 1.2, color = "steelblue") +
+  geom_hline(yintercept = mean(economics$unemploy),
+             linetype = "dashed", color = "red", size = 1) +
+  annotate("text", x = as.Date("1980-01-01"), y = mean(economics$unemploy) + 1000,
+           label = paste("Average:", round(mean(economics$unemploy), 0), "thousand"),
+           color = "red", fontface = "bold") +
+  labs(
+    title = "U.S. Unemployment with Historical Average",
+    x = "Date",
+    y = "Number of Unemployed (thousands)"
+  ) +
+  theme_minimal()
+```
+
+## Complex Multi-Panel Layouts
+
+### Using Patchwork for Complex Layouts
+
+```{r}
+# Create multiple related plots
+p1 <- ggplot(iris, aes(x = Sepal.Length, fill = Species)) +
+  geom_histogram(bins = 15, alpha = 0.7) +
+  scale_fill_viridis_d() +
+  labs(title = "A) Sepal Length Distribution", x = "Sepal Length (cm)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p2 <- ggplot(iris, aes(x = Petal.Length, fill = Species)) +
+  geom_histogram(bins = 15, alpha = 0.7) +
+  scale_fill_viridis_d() +
+  labs(title = "B) Petal Length Distribution", x = "Petal Length (cm)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+p3 <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
+  geom_point(size = 3, alpha = 0.8) +
+  scale_color_viridis_d() +
+  labs(title = "C) Sepal vs Petal Length",
+       x = "Sepal Length (cm)", y = "Petal Length (cm)") +
+  theme_minimal()
+
+p4 <- ggplot(iris, aes(x = Species, y = Sepal.Length, fill = Species)) +
+  geom_boxplot(alpha = 0.7) +
+  scale_fill_viridis_d() +
+  labs(title = "D) Species Comparison", x = "Species", y = "Sepal Length (cm)") +
+  theme_minimal() +
+  theme(legend.position = "none")
+
+# Combine plots with patchwork
+(p1 | p2) / (p3 | p4) +
+  plot_annotation(
+    title = "Comprehensive Iris Dataset Analysis",
+    subtitle = "Multiple perspectives on the famous iris dataset",
+    caption = "Data: Anderson's iris measurements"
+  )
+```
+
+## Real-World Journalism Applications
+
+### Creating a News-Style Infographic
+
+```{r}
+# Simulate COVID-like data for a news visualization
+covid_data <- data.frame(
+  date = seq(as.Date("2020-03-01"), as.Date("2020-12-31"), by = "week"),
+  cases = c(100, 250, 500, 1200, 2800, 5500, 8900, 12000, 15000, 18500,
+            22000, 25000, 28000, 26000, 24000, 22000, 19000, 16000, 14000,
+            12000, 10000, 8500, 7200, 6100, 5200, 4500, 3800, 3200, 2800,
+            2400, 2100, 1900, 1700, 1500, 1300, 1200, 1100, 1000, 950,
+            900, 850, 800, 780)
+)
+
+ggplot(covid_data, aes(x = date, y = cases)) +
+  geom_area(fill = "#d62728", alpha = 0.3) +
+  geom_line(size = 2, color = "#d62728") +
+  scale_x_date(date_labels = "%b %Y", date_breaks = "2 months") +
+  scale_y_continuous(labels = scales::comma_format(),
+                     expand = expansion(mult = c(0, 0.1))) +
+  labs(
+    title = "Weekly COVID-19 Cases",
+    subtitle = "Showing the progression through 2020",
+    x = NULL,
+    y = "Number of Cases",
+    caption = "Source: Public Health Department"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 20, face = "bold"),
+    plot.subtitle = element_text(size = 14, color = "gray60"),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    panel.grid.minor = element_blank(),
+    axis.line.x = element_line(color = "gray80")
+  )
+```
+
+### Budget Visualization for Government Reporting
+
+```{r}
+# Create government budget visualization
+budget_data <- data.frame(
+  department = c("Education", "Healthcare", "Transportation", "Public Safety",
+                 "Parks & Recreation", "Administration", "Utilities"),
+  budget_2023 = c(45.2, 32.1, 18.7, 15.3, 8.2, 12.1, 22.4),
+  budget_2024 = c(48.1, 35.8, 19.2, 16.1, 9.1, 11.8, 24.2)
+) %>%
+  pivot_longer(cols = starts_with("budget"), names_to = "year", values_to = "amount") %>%
+  mutate(year = str_extract(year, "\\d{4}"))
+
+ggplot(budget_data, aes(x = reorder(department, amount), y = amount, fill = year)) +
+  geom_col(position = "dodge", alpha = 0.8, color = "white", size = 0.5) +
+  coord_flip() +
+  scale_fill_manual(values = c("2023" = "#2ca02c", "2024" = "#1f77b4")) +
+  scale_y_continuous(labels = function(x) paste0("$", x, "M"),
+                     expand = expansion(mult = c(0, 0.1))) +
+  labs(
+    title = "City Budget Comparison: 2023 vs 2024",
+    subtitle = "Budget allocations by department (in millions)",
+    x = NULL,
+    y = "Budget Amount",
+    fill = "Year",
+    caption = "Source: City Finance Department"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.text = element_text(size = 11),
+    legend.position = "bottom",
+    panel.grid.major.y = element_blank()
+  )
+```
+
+## Export and Output Optimization
+
+### High-Resolution Output for Print
+
+```{r}
+# Create a publication-ready plot for saving
+final_plot <- ggplot(iris, aes(x = Sepal.Length, y = Petal.Length, color = Species)) +
+  geom_point(size = 3, alpha = 0.8) +
+  geom_smooth(method = "lm", se = TRUE, alpha = 0.2) +
+  scale_color_viridis_d(name = "Species") +
+  labs(
+    title = "Sepal vs Petal Length Relationship",
+    subtitle = "Linear relationships vary by species",
+    x = "Sepal Length (cm)",
+    y = "Petal Length (cm)",
+    caption = "Data: Anderson's iris dataset (1935)"
+  ) +
+  theme_publication()
+
+# Display the plot
+final_plot
+
+# Code for saving (would be used outside of this document):
+# ggsave("iris_analysis.png", final_plot, width = 10, height = 8, dpi = 300)
+# ggsave("iris_analysis.pdf", final_plot, width = 10, height = 8)
+```
+
+### Web-Optimized Output
+
+```{r}
+# Create a plot optimized for web display
+web_plot <- ggplot(sales_data, aes(x = month, y = sales, color = product)) +
+  geom_line(size = 2, alpha = 0.9) +
+  geom_point(size = 3) +
+  scale_x_date(date_labels = "%b", date_breaks = "1 month") +
+  scale_y_continuous(labels = scales::comma_format()) +
+  scale_color_viridis_d(name = "Product Line",
+                        labels = c("Product A", "Product B", "Product C")) +
+  labs(
+    title = "2023 Sales Performance",
+    x = "Month",
+    y = "Units Sold"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(size = 18, face = "bold"),
+    axis.text.x = element_text(size = 12),
+    axis.text.y = element_text(size = 12),
+    legend.position = "bottom",
+    panel.grid.minor = element_blank()
+  )
+
+web_plot
+
+# For web: ggsave("sales_chart.svg", web_plot, width = 12, height = 6)
+```
+
+## Best Practices and Performance Tips
+
+### Efficient Data Preparation
+
+```{r}
+# Prepare data efficiently before plotting
+efficient_summary <- mtcars %>%
+  mutate(
+    transmission = factor(am, labels = c("Automatic", "Manual")),
+    efficiency = case_when(
+      mpg >= 25 ~ "High",
+      mpg >= 20 ~ "Medium",
+      TRUE ~ "Low"
+    )
+  ) %>%
+  count(transmission, efficiency) %>%
+  mutate(efficiency = factor(efficiency, levels = c("Low", "Medium", "High")))
+
+ggplot(efficient_summary, aes(x = transmission, y = n, fill = efficiency)) +
+  geom_col(position = "dodge") +
+  scale_fill_brewer(type = "seq", palette = "Blues") +
+  labs(
+    title = "Fuel Efficiency Distribution by Transmission Type",
+    x = "Transmission",
+    y = "Number of Cars",
+    fill = "Fuel Efficiency"
+  ) +
+  theme_minimal()
+```
+
+### Handling Large Datasets
+
+```{r}
+# Demonstrate sampling strategies for large datasets
+set.seed(123)
+large_dataset <- data.frame(
+  x = rnorm(50000),
+  y = rnorm(50000),
+  category = sample(letters[1:10], 50000, replace = TRUE)
+)
+
+# Strategy 1: Random sampling
+sampled_data <- large_dataset %>%
+  slice_sample(n = 2000)
+
+ggplot(sampled_data, aes(x = x, y = y, color = category)) +
+  geom_point(alpha = 0.6) +
+  scale_color_viridis_d() +
+  labs(
+    title = "Large Dataset Visualization (Sampled)",
+    subtitle = paste("Showing 2,000 of", scales::comma(nrow(large_dataset)), "points"),
+    x = "X Variable",
+    y = "Y Variable"
+  ) +
+  theme_minimal() +
+  theme(legend.position = "none")
+```
+
+## Exercises and Practice
+
+### Exercise 1: Create a Multi-Panel Dashboard
+
+Using the `mpg` dataset, create a four-panel dashboard that shows:
+1. Scatter plot of engine displacement vs highway MPG
+2. Bar chart of average MPG by vehicle class
+3. Histogram of highway MPG distribution
+4. Box plot comparing city vs highway MPG
+
+```{r}
+# Your solution here - create four plots and combine with patchwork
+# Hint: Use pivot_longer() for the city vs highway comparison
+
+```
+
+### Exercise 2: Publication-Ready Time Series
+
+Using the `economics` dataset, create a professional time series visualization that:
+- Shows unemployment rate over time
+- Includes a recession period highlighted with a rectangle
+- Has publication-quality styling and annotations
+- Includes proper axis formatting and labels
+
+```{r}
+# Your solution here
+# Hint: Use annotate("rect", ...) for highlighting periods
+# Use scale_x_date() for proper date formatting
+
+```
+
+### Exercise 3: Journalism-Style Infographic
+
+Create a news-style visualization using any dataset that:
+- Tells a clear story with the data
+- Uses color strategically to highlight key information
+- Includes proper titles, subtitles, and source attribution
+- Follows accessibility best practices
+- Could realistically appear in a newspaper or website
+
+```{r}
+# Your solution here - be creative!
+
+```
+
+## Key Takeaways and Best Practices
+
+### When to Use ggplot2
+
+- **Publication-quality graphics**: When you need precise control over appearance
+- **Static visualizations**: For reports, presentations, and print media
+- **Complex multi-layered plots**: When building sophisticated analytical graphics
+- **Consistent styling**: When creating multiple charts with uniform appearance
+- **Academic and scientific contexts**: Where static, high-quality figures are standard
+
+### Design Principles for Static Graphics
+
+1. **Clarity first**: Make your message immediately clear
+2. **Consistent aesthetics**: Use uniform colors, fonts, and spacing
+3. **Accessible design**: Consider color-blind users and varying technical literacy
+4. **Appropriate chart types**: Match the visualization to your data and message
+5. **Clean presentation**: Remove unnecessary elements that don't add value
+
+### Common Pitfalls to Avoid
+
+- Overcomplicating simple relationships with unnecessary aesthetics
+- Using too many colors or categories in a single plot
+- Ignoring accessibility considerations
+- Creating misleading visualizations through poor scale choices
+- Forgetting to include proper context and labels
+
+### Performance and Efficiency
+
+- Prepare and summarize data before plotting when possible
+- Use sampling strategies for very large datasets
+- Choose appropriate file formats for your output medium
+- Test your visualizations with actual users and contexts
+
+## Additional Resources
+
+- [ggplot2 Documentation](https://ggplot2.tidyverse.org/)
+- [R Graphics Cookbook by Winston Chang](https://r-graphics.org/)
+- [Fundamentals of Data Visualization by Claus Wilke](https://clauswilke.com/dataviz/)
+- [Color Brewer for Accessible Palettes](https://colorbrewer2.org/)
+- [The R Graph Gallery](https://r-graph-gallery.com/)
+- [Patchwork Package for Multi-Panel Layouts](https://patchwork.data-imaginist.com/)
+
+## Conclusion
+
+ggplot2 remains the gold standard for creating publication-quality static visualizations in R. Its systematic approach through the grammar of graphics provides both flexibility and consistency, making it indispensable for data analysis, academic research, and professional reporting.
+
+The key to mastering ggplot2 is understanding that every visualization is built through layers - starting with data and aesthetics, adding geometries, and then customizing through scales, themes, and annotations. This systematic approach allows you to create everything from simple exploratory plots to complex, multi-panel figures ready for publication.
+
+Remember that the best visualizations are not necessarily the most complex ones, but those that communicate your data's story most effectively to your intended audience.
