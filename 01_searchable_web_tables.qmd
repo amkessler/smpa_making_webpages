@@ -4,6 +4,17 @@ author: "Aaron Kessler"
 format:
   html:
     self-contained: true
+    theme: cosmo
+    toc: true
+    toc-title: "On this page"
+    toc-depth: 2
+    code-copy: true
+    smooth-scroll: true
+    page-layout: article
+    css: styles.css
+execute:
+  warning: false
+  message: false
 ---
 
 ```{r setup, include=FALSE}
@@ -17,26 +28,49 @@ library(DT)
 # Load in data of prez candidate campaign trips between midterms and end of Jan
 events <- readRDS("events_saved.rds")
 
+options(knitr.kable.NA = "")
+
+table_class <- "display nowrap stripe compact"
+dt_base_options <- list(
+  pageLength = 15,
+  language = list(search = "Quick find:"),
+  scrollX = TRUE
+)
+dt_button_config <- list(
+  "copy",
+  list(extend = "csv", filename = "campaign_events"),
+  list(extend = "excel", filename = "campaign_events")
+)
+candidate_palette <- c(Biden = "#DCE4F7", Warren = "#DCE4F7", Trump = "#F9E0E0")
+accent_color <- "#6C4EE3"
+
 
 ```
+
+::: {.lead}
+Explore how to transform campaign event data into an elegant, searchable web experience powered by `DT`.
+:::
 
 ## Using DT to make a searchable table
 
-```{r}
-#### MAKING A SEARCHABLE TABLE FOR THE WEB ####
+::: callout-note
+## What makes a webpage?
+[An oldie but a goodie from 2009](https://www.youtube.com/watch?v=7_LPdttKXPc) reminds us the web is simply a network of connected computers.
+Ultimately, a website is just a collection of files that live on someone else's server.
+:::
 
-# First -- let's talk about: what is the Internet? What IS a web page?
-# An oldie but a goodie from 2009: https://www.youtube.com/watch?v=7_LPdttKXPc
-# Bottom line, it's just a bunch of computers connected to each other. 
-# A website? It's just files on someone else's computer (aka server)
-```
+Let's start with the most basic searchable table so you can see how little code it takes to publish something useful on the web.
 
 
 ```{r}
 #We can use the "DT" package to easily make a sortable, filterable, searchable data table
 #Just this little bit of code does a whole lot - check it out:
 
-DT::datatable(events)
+DT::datatable(
+  events,
+  class = table_class,
+  options = modifyList(dt_base_options, list(dom = "frtip"))
+)
 
 ```
 
@@ -44,10 +78,13 @@ DT::datatable(events)
 ```{r}
 #We can already sort, but what if we want to allow the table to be FILTERED too?
 #It's easy, we just add:
-DT::datatable(events, 
-              rownames = FALSE, 
-              filter = "top"  # <--- NEW STUFF HERE
-              )
+DT::datatable(
+  events, 
+  rownames = FALSE, 
+  filter = "top",
+  class = table_class,
+  options = modifyList(dt_base_options, list(dom = "frtip"))
+)
 ```
 
 
@@ -65,9 +102,13 @@ events <- events %>%
 
 ```{r}
 #Now let's try the DT table code again and see if it worked
-DT::datatable(events, 
-              rownames = FALSE, 
-              filter = "top")
+DT::datatable(
+  events, 
+  rownames = FALSE, 
+  filter = "top",
+  class = table_class,
+  options = modifyList(dt_base_options, list(dom = "frtip"))
+)
 ```
 
 
@@ -77,15 +118,15 @@ DT::datatable(events,
 #we do that using a DT "extension" called, you guessed it, Buttons
 # https://rstudio.github.io/DT/extensions.html
 
-DT::datatable(events, 
-              rownames = FALSE, 
-              filter = "top", 
-              extensions = 'Buttons', 
-              options = list(   # <--- NEW STUFF STARTS HERE
-                dom = 'Bfrtip',
-                buttons = c('copy', 'pdf', "excel")
-              )) %>%
-  DT::formatStyle('cand_lastname',  color = '#a65ed6', fontWeight = 'bold')
+DT::datatable(
+  events, 
+  rownames = FALSE, 
+  filter = "top", 
+  extensions = 'Buttons', 
+  class = table_class,
+  options = modifyList(dt_base_options, list(dom = 'Bfrtip', buttons = dt_button_config))
+) %>%
+  DT::formatStyle('cand_lastname', color = accent_color, fontWeight = 'bold')
 ```
 
 
@@ -94,15 +135,15 @@ DT::datatable(events,
 
 # first we just need to assign our table to a variable...
 
-mytable <- DT::datatable(events, 
-                         rownames = FALSE, 
-                         filter = "top", 
-                         extensions = 'Buttons', 
-                         options = list(
-                           dom = 'Bfrtip',
-                           buttons = c('copy', 'csv', "excel")
-                         )) %>%
-  DT::formatStyle('cand_lastname',  color = 'red', fontWeight = 'bold') 
+mytable <- DT::datatable(
+  events, 
+  rownames = FALSE, 
+  filter = "top", 
+  extensions = 'Buttons', 
+  class = table_class,
+  options = modifyList(dt_base_options, list(dom = 'Bfrtip', buttons = dt_button_config))
+) %>%
+  DT::formatStyle('cand_lastname', color = accent_color, fontWeight = 'bold') 
 
 # ... then just run this simple bit of code to export to html
 htmlwidgets::saveWidget(mytable, "candidatetracker.html")
@@ -118,16 +159,32 @@ htmlwidgets::saveWidget(mytable, "candidatetracker.html")
 
 ### Creating a Minimal Table
 
-What if we have a little table and want a super minimal table with everything stripped out
+::: {.columns}
+::: {.column width="55%"}
+What if we have a small snippet of data and want a super minimal presentation with all of the chrome removed?
+This layout focuses the reader on the content itself without search boxes or pagination controls.
+:::
+::: {.column width="45%"}
 ```{r}
 
 events %>% 
   head(5) %>% 
-  DT::datatable(rownames = FALSE, 
-                options = list(searching = FALSE, paging = FALSE, dom = "tip")) 
+  DT::datatable(
+    rownames = FALSE, 
+    class = table_class,
+    options = modifyList(dt_base_options, list(
+      searching = FALSE,
+      paging = FALSE,
+      dom = "t",
+      pageLength = 5,
+      scrollX = FALSE
+    ))
+  ) 
 
 
 ```
+:::
+:::
 
 ## Advanced DT Formatting and Conditional Styling
 
@@ -138,26 +195,24 @@ Sometimes you want to highlight specific data points or format columns different
 # This example highlights different candidate parties with colors
 # and formats the date column for better readability
 
-DT::datatable(events, 
-              rownames = FALSE, 
-              filter = "top",
-              extensions = 'Buttons', 
-              options = list(
-                dom = 'Bfrtip',
-                buttons = c('copy', 'csv', 'excel'),
-                pageLength = 15,
-                scrollX = TRUE
-              )) %>%
+DT::datatable(
+  events, 
+  rownames = FALSE, 
+  filter = "top",
+  extensions = 'Buttons', 
+  class = table_class,
+  options = modifyList(dt_base_options, list(dom = 'Bfrtip', buttons = dt_button_config))
+) %>%
   # Format the date column to be more readable
   DT::formatDate('date', method = 'toLocaleDateString') %>%
-  # Highlight Democratic candidates in blue
-  DT::formatStyle('cand_lastname', 
-                  backgroundColor = DT::styleEqual('Biden', '#E3F2FD')) %>%
-  DT::formatStyle('cand_lastname', 
-                  backgroundColor = DT::styleEqual('Warren', '#E3F2FD')) %>%
-  # Highlight Republican candidates in red
-  DT::formatStyle('cand_lastname', 
-                  backgroundColor = DT::styleEqual('Trump', '#FFEBEE')) %>%
+  # Highlight candidates with party styling and adjust typography
+  DT::formatStyle(
+    'cand_lastname',
+    backgroundColor = DT::styleEqual(names(candidate_palette), unname(candidate_palette)),
+    fontWeight = 'bold',
+    color = accent_color
+  ) %>%
+  DT::formatStyle('date', color = '#4A4A4A') %>%
   # Make the event type column bold and change text color
   DT::formatStyle('event_type', fontWeight = 'bold', color = '#2E7D32')
 
@@ -171,36 +226,33 @@ For more advanced users, you can customize how the search functionality works an
 # Create a more customized table with specific search options
 # and enhanced user experience features
 
-DT::datatable(events, 
-              rownames = FALSE, 
-              filter = list(position = 'top', clear = FALSE),
-              extensions = c('Buttons', 'ColReorder'), 
-              options = list(
-                dom = 'Blfrtip',  # B=buttons, l=length menu, f=filtering, r=processing, t=table, i=info, p=pagination
-                buttons = list(
-                  'copy',
-                  list(extend = 'csv', filename = 'campaign_events'),
-                  list(extend = 'excel', filename = 'campaign_events'),
-                  'colvis'  # Column visibility toggle
-                ),
-                pageLength = 10,
-                lengthMenu = list(c(5, 10, 25, 50, -1), c('5', '10', '25', '50', 'All')),
-                scrollX = TRUE,
-                colReorder = TRUE,  # Allow column reordering
-                search = list(regex = TRUE, caseInsensitive = TRUE),
-                columnDefs = list(
-                  list(targets = '_all', className = 'dt-center'),  # Center align all columns
-                  list(targets = c(0), visible = FALSE),  # Hide first column if needed
-                  list(targets = c(1, 2), searchable = TRUE)  # Make specific columns searchable
-                )
-              )) %>%
+DT::datatable(
+  events, 
+  rownames = FALSE, 
+  filter = list(position = 'top', clear = FALSE),
+  extensions = c('Buttons', 'ColReorder'), 
+  class = table_class,
+  options = modifyList(dt_base_options, list(
+    dom = 'Blfrtip',  # B=buttons, l=length menu, f=filtering, r=processing, t=table, i=info, p=pagination
+    buttons = append(dt_button_config, list('colvis')),
+    pageLength = 10,
+    lengthMenu = list(c(5, 10, 25, 50, -1), c('5', '10', '25', '50', 'All')),
+    colReorder = TRUE,  # Allow column reordering
+    search = list(regex = TRUE, caseInsensitive = TRUE),
+    columnDefs = list(
+      list(targets = '_all', className = 'dt-body-middle'),  # Align content nicely
+      list(targets = 0, visible = FALSE),  # Hide first column if needed
+      list(targets = c(1, 2), searchable = TRUE)
+    )
+  ))
+) %>%
   # Add custom styling for better readability
   DT::formatStyle(columns = c('cand_lastname'), 
                   fontSize = '14px', 
-                  fontWeight = 'bold') %>%
+                  fontWeight = 'bold',
+                  color = accent_color) %>%
   DT::formatStyle(columns = c('state'), 
-                  backgroundColor = '#F5F5F5',
-                  border = '1px solid #ddd')
+                  backgroundColor = '#F5F2FF',
+                  border = '1px solid #E0DAFF')
 
 ```
-
