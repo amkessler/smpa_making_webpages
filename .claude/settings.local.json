@@ -7,7 +7,10 @@
       "Bash(gh pr create:*)",
       "Bash(gh pr checkout:*)",
       "Bash(git add:*)",
-      "Bash(gh:*)"
+      "Bash(gh:*)",
+      "Bash(quarto render:*)",
+      "Bash(Rscript:*)",
+      "Bash(sed:*)"
     ],
     "deny": [],
     "ask": []

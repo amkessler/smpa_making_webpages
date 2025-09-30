@@ -6,3 +6,4 @@
 # Generated HTML outputs and their dependencies
 *.html
 *_files/
+.claude/settings.local.json
