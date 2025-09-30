@@ -164,7 +164,7 @@ transmission_cyl %>%
   e_title("Transmission Types by Cylinder Count") %>%
   e_tooltip() %>%
   e_legend(top = "10%") %>%
-  e_colors(c("#d48265", "#91c7ae"))
+  e_color(c("#d48265", "#91c7ae"))
 ```
 
 ## Advanced Multi-Series Charts
@@ -186,8 +186,7 @@ sales_long %>%
   group_by(product) %>%
   e_charts(month) %>%
   e_line(sales, smooth = TRUE) %>%  # Smooth lines
-  e_title("Monthly Sales by Product") %>%
-  e_subtitle("Interactive chart with data zoom and brush selection") %>%
+  e_title("Monthly Sales by Product", subtext = "Interactive chart with data zoom and brush selection") %>%
   e_tooltip(trigger = "axis") %>%
   e_legend(top = "10%") %>%
   e_datazoom(type = "slider") %>%  # Add data zoom slider
@@ -234,9 +233,10 @@ echarts4r offers impressive gauge visualizations:
 
 ```{r}
 # Simple gauge chart
-data.frame(value = 75) %>%
+gauge_data <- data.frame(value = 75)
+gauge_data %>%
   e_charts() %>%
-  e_gauge(value, "Performance Score") %>%
+  e_gauge(gauge_data$value, "Performance Score") %>%
   e_title("Performance Dashboard") %>%
   e_color("#c23531")
 ```
@@ -245,14 +245,15 @@ data.frame(value = 75) %>%
 
 ```{r}
 # Advanced gauge with custom appearance
-data.frame(
+system_data <- data.frame(
   metric = c("CPU", "Memory", "Disk"),
   value = c(65, 82, 45)
-) %>%
+)
+system_data %>%
   e_charts() %>%
   e_gauge(
-    value,
-    metric,
+    system_data$value,
+    system_data$metric,
     radius = "60%",
     startAngle = 180,
     endAngle = 0,
@@ -279,27 +280,22 @@ data.frame(
 Hierarchical data visualization with treemaps:
 
 ```{r}
-# Create hierarchical data
-treemap_data <- mtcars %>%
-  rownames_to_column("car") %>%
-  mutate(
-    brand = word(car, 1),
-    value = hp
-  ) %>%
-  group_by(brand) %>%
-  summarise(
-    total_hp = sum(hp),
-    car_count = n(),
-    .groups = "drop"
-  ) %>%
-  mutate(name = brand, value = total_hp) %>%
-  select(name, value)
+# Create hierarchical treemap data
+treemap_data <- tibble(
+  name = c("Sports Cars", "Sedans", "Luxury"),
+  value = c(450, 380, 420),
+  children = list(
+    tibble(name = c("Ferrari", "Porsche", "Mazda"), value = c(175, 150, 125)),
+    tibble(name = c("Toyota", "Honda", "Merc"), value = c(120, 130, 130)),
+    tibble(name = c("Cadillac", "Lincoln"), value = c(205, 215))
+  )
+)
 
 # Create treemap
 treemap_data %>%
   e_charts() %>%
-  e_treemap(name, value) %>%
-  e_title("Car Brands by Total Horsepower") %>%
+  e_treemap() %>%
+  e_title("Car Categories by Horsepower") %>%
   e_tooltip()
 ```
 
@@ -340,8 +336,8 @@ One of echarts4r's standout features is 3D visualization:
 # Create 3D scatter plot
 iris %>%
   group_by(Species) %>%
-  e_charts() %>%
-  e_scatter_3d(Sepal.Length, Sepal.Width, Petal.Length, symbol_size = 10) %>%
+  e_charts(Sepal.Length) %>%
+  e_scatter_3d(Sepal.Width, Petal.Length, symbol_size = 10) %>%
   e_title("3D Iris Visualization") %>%
   e_legend() %>%
   e_tooltip()
@@ -446,7 +442,7 @@ mtcars %>%
   e_charts(cyl) %>%
   e_bar(n, name = "Count") %>%
   e_title("Custom Color Palette Example") %>%
-  e_colors(custom_colors) %>%
+  e_color(custom_colors) %>%
   e_tooltip()
 ```
 
@@ -464,7 +460,7 @@ sales_data %>%
     duration = 2000,           # Animation duration
     easing = "elasticOut",     # Easing function
     delay = 100,               # Delay before animation
-    duration_update = 800      # Update animation duration
+    duration.update = 800      # Update animation duration
   ) %>%
   e_tooltip()
 ```
@@ -484,7 +480,7 @@ iris %>%
   e_charts(Sepal.Length) %>%
   e_scatter(Sepal.Width, symbol_size = 10) %>%
   e_title("Accessible Iris Visualization") %>%
-  e_colors(accessible_colors) %>%
+  e_color(accessible_colors) %>%
   e_tooltip() %>%
   e_legend()
 ```
@@ -565,30 +561,20 @@ data.frame(
 Hierarchical data in a radial layout:
 
 ```{r}
-# Create sunburst data
-sunburst_data <- list(
-  list(
-    name = "Technology",
-    children = list(
-      list(name = "Software", value = 40),
-      list(name = "Hardware", value = 30),
-      list(name = "AI/ML", value = 25)
-    )
-  ),
-  list(
-    name = "Finance",
-    children = list(
-      list(name = "Banking", value = 35),
-      list(name = "Investment", value = 28),
-      list(name = "Insurance", value = 20)
-    )
+# Create sunburst data in tibble format
+sunburst_data <- tibble(
+  name = c("Technology", "Finance"),
+  value = c(95, 83),
+  children = list(
+    tibble(name = c("Software", "Hardware", "AI/ML"), value = c(40, 30, 25)),
+    tibble(name = c("Banking", "Investment", "Insurance"), value = c(35, 28, 20))
   )
 )
 
 # Create sunburst chart
-data.frame(x = 1) %>%
+sunburst_data %>%
   e_charts() %>%
-  e_sunburst(sunburst_data) %>%
+  e_sunburst() %>%
   e_title("Industry Breakdown - Sunburst Chart")
 ```
 
@@ -645,8 +631,7 @@ echarts4r integrates seamlessly with Shiny and other R dashboard frameworks:
 dashboard_chart <- mtcars %>%
   e_charts(wt) %>%
   e_scatter(mpg, size = hp, symbol_size = 15) %>%
-  e_title("Vehicle Performance Dashboard") %>%
-  e_subtitle("Weight vs MPG (bubble size = horsepower)") %>%
+  e_title("Vehicle Performance Dashboard", subtext = "Weight vs MPG (bubble size = horsepower)") %>%
   e_tooltip(
     formatter = htmlwidgets::JS("
       function(params){
@@ -706,8 +691,7 @@ election_data <- data.frame(
 election_data %>%
   e_charts(candidate) %>%
   e_bar(votes, name = "Votes") %>%
-  e_title("2024 Election Results") %>%
-  e_subtitle("Interactive results with vote counts") %>%
+  e_title("2024 Election Results", subtext = "Interactive results with vote counts") %>%
   e_tooltip(
     formatter = htmlwidgets::JS("
       function(params){
@@ -717,7 +701,7 @@ election_data %>%
       }
     ")
   ) %>%
-  e_colors(election_data$color) %>%
+  e_color(election_data$color) %>%
   e_legend(show = FALSE) %>%
   e_animation(duration = 1500)
 ```
@@ -742,7 +726,7 @@ dashboard_data %>%
   e_tooltip(trigger = "axis") %>%
   e_legend(top = "10%") %>%
   e_y_axis(index = 1, position = "right", name = "Percentage") %>%
-  e_colors(c("#91c7ae", "#c23531")) %>%
+  e_color(c("#91c7ae", "#c23531")) %>%
   e_theme("westeros")
 ```
 
